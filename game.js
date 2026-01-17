@@ -14,6 +14,9 @@ const muteBtn = document.getElementById('mute-btn');
 // Zvučni efekti
 const jumpSound = new Audio('jump.mp3');
 const gameOverSound = new Audio('gameover.mp3');
+const bgMusic = new Audio('music.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.4; // Malo tiša pozadinska muzika
 
 // Dinamička rezolucija
 function resize() {
@@ -67,9 +70,9 @@ class BackgroundLayer {
 }
 
 const backgroundLayers = [
-    new BackgroundLayer(0.05, 'rgba(0, 0, 0, 0.02)', [{x:0, h:50}, {x:400, h:80}, {x:800, h:40}, {x:1200, h:50}]), // Oblaci
-    new BackgroundLayer(0.1, '#f1f2f6', [{x:0, h:150}, {x:300, h:250}, {x:600, h:180}, {x:900, h:320}, {x:1200, h:150}]), // Daleke planine
-    new BackgroundLayer(0.2, '#f5f6fa', [{x:0, h:80}, {x:250, h:150}, {x:550, h:100}, {x:850, h:200}, {x:1200, h:80}])  // Bliža brda
+    new BackgroundLayer(0.1, 'rgba(0, 0, 0, 0.08)', [{x:0, h:50}, {x:400, h:80}, {x:800, h:40}, {x:1200, h:50}]), // Oblaci (brži i vidljiviji)
+    new BackgroundLayer(0.25, '#dfe6e9', [{x:0, h:150}, {x:300, h:250}, {x:600, h:180}, {x:900, h:320}, {x:1200, h:150}]), // Daleke planine (svetlije)
+    new BackgroundLayer(0.5, '#b2bec3', [{x:0, h:80}, {x:250, h:150}, {x:550, h:100}, {x:850, h:200}, {x:1200, h:80}])  // Bliža brda (tamnija i brža)
 ];
 
 let gameState = 'START'; // START, PLAYING, GAMEOVER
@@ -84,6 +87,12 @@ muteBtn.addEventListener('click', () => {
     localStorage.setItem('ninjaMuted', isMuted);
     muteBtn.innerText = isMuted ? '🔇' : '🔊';
     muteBtn.blur(); // Sklanja fokus da Space taster ne bi opet aktivirao dugme
+    
+    if (isMuted) {
+        bgMusic.pause();
+    } else if (gameState === 'PLAYING') {
+        bgMusic.play().catch(e => console.log(e));
+    }
 });
 
 let shields = 0;
@@ -376,6 +385,10 @@ function resetGame() {
     gameState = 'PLAYING';
     startMessage.style.display = 'none';
     gameOverScreen.style.display = 'none';
+    
+    if (!isMuted) {
+        bgMusic.play().catch(e => console.log(e));
+    }
 }
 
 function gameLoop() {
@@ -443,6 +456,8 @@ function gameLoop() {
                     if (!isMuted) {
                         gameOverSound.play().catch(e => console.log(e));
                     }
+                    bgMusic.pause();
+                    bgMusic.currentTime = 0;
                     gameOverScreen.style.display = 'flex';
                     goScoreElement.innerText = score;
                     goBestElement.innerText = highScore;
