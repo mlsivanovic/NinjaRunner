@@ -10,6 +10,10 @@ const goScoreElement = document.getElementById('go-score');
 const goBestElement = document.getElementById('go-best');
 const restartBtn = document.getElementById('restart-btn');
 
+// Zvučni efekti
+const jumpSound = new Audio('jump.mp3');
+const gameOverSound = new Audio('gameover.mp3');
+
 // Dinamička rezolucija
 function resize() {
     canvas.width = window.innerWidth;
@@ -208,6 +212,9 @@ const ninja = {
                 this.isGrounded = false;
                 this.isJumping = true;
                 this.jumpCount++;
+                
+                jumpSound.currentTime = 0; // Resetuje zvuk za brze skokove (double jump)
+                jumpSound.play().catch(e => console.log(e));
             }
         } else {
             this.isJumping = false;
@@ -419,6 +426,7 @@ function gameLoop() {
 
                 if (lives <= 0) {
                     gameState = 'GAMEOVER';
+                    gameOverSound.play().catch(e => console.log(e));
                     gameOverScreen.style.display = 'flex';
                     goScoreElement.innerText = score;
                     goBestElement.innerText = highScore;

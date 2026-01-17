@@ -1,11 +1,13 @@
-const CACHE_NAME = 'ninja-v2';
+const CACHE_NAME = 'ninja-v3';
 const ASSETS = [
   './index.html',
   './style.css',
   './game.js',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './jump.mp3',
+  './gameover.mp3'
 ];
 
 self.addEventListener('install', e => {
