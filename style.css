@@ -58,3 +58,37 @@ canvas {
     padding: 10px 20px;
     border-radius: 20px;
 }
+
+#game-over-screen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(45, 52, 54, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    min-width: 300px;
+    pointer-events: auto; /* Omogućava klik na dugme */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#game-over-screen h1 {
+    font-size: 40px;
+    color: #e74c3c;
+    margin: 0;
+}
+
+#restart-btn {
+    background: #0984e3;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 20px;
+    border-radius: 50px;
+    cursor: pointer;
+}

@@ -3,6 +3,12 @@ const ctx = canvas.getContext('2d');
 const scoreBoard = document.getElementById('score-board');
 const startMessage = document.getElementById('start-message');
 const highScoreElement = document.getElementById('high-score');
+const livesElement = document.getElementById('lives-board');
+const shieldElement = document.getElementById('shield-board');
+const gameOverScreen = document.getElementById('game-over-screen');
+const goScoreElement = document.getElementById('go-score');
+const goBestElement = document.getElementById('go-best');
+const restartBtn = document.getElementById('restart-btn');
 
 // Dinamička rezolucija
 function resize() {
@@ -63,12 +69,16 @@ const backgroundLayers = [
 
 let gameState = 'START'; // START, PLAYING, GAMEOVER
 let score = 0;
+let lives = 3;
+let shields = 0;
 let highScore = parseInt(localStorage.getItem('ninjaHighScore')) || 0;
 highScoreElement.innerText = `Best: ${highScore}`;
 let gameSpeed = 3.5;
 let obstacles = [];
+let powerUps = [];
 let frameCount = 0;
 let obstacleTimer = 0;
+let powerUpTimer = 0;
 
 const ninja = {
     x: 80,
@@ -85,6 +95,7 @@ const ninja = {
     animationFrame: 0,
     jumpCount: 0,
     maxJumps: 2,
+    invulnerabilityTimer: 0,
 
     
     draw() {
@@ -92,6 +103,11 @@ const ninja = {
         const drawX = this.x * scale;
         const drawW = this.width * scale;
         const drawH = this.height * scale;
+
+        // Efekat treperenja: ne crtamo nindžu svaki 4. frejm ako je neranjiv
+        if (this.invulnerabilityTimer > 0 && Math.floor(frameCount / 4) % 2 === 0) {
+            return;
+        }
 
         ctx.save();
         // Pozicioniramo se na dno nindže radi lakšeg crtanja ljudske figure
@@ -102,6 +118,11 @@ const ninja = {
         ctx.rotate(this.rotation);
         ctx.translate(0, drawH / 2);
         
+        if (shields > 0) {
+            ctx.shadowBlur = 15 * scale;
+            ctx.shadowColor = '#0984e3';
+        }
+
         ctx.fillStyle = '#000000'; 
 
         if (!this.isDucking) {
@@ -153,6 +174,8 @@ const ninja = {
     update() {
         if (gameState !== 'PLAYING') return;
         
+        if (this.invulnerabilityTimer > 0) this.invulnerabilityTimer--;
+
         // Varijabilna visina skoka: ako igrač pusti taster dok nindža ide gore, brže pada
         let currentGravity = this.gravity;
         if (this.dy < 0 && !this.isJumping) {
@@ -240,6 +263,44 @@ class Obstacle {
     }
 }
 
+class PowerUp {
+    constructor() {
+        this.width = 40;
+        this.height = 40;
+        this.x = canvas.width / getScale();
+        // Pojavljuje se u vazduhu, na visini koju igrač može da dohvati skokom
+        this.y = GROUND_Y - 180; 
+    }
+
+    draw() {
+        const scale = getScale();
+        ctx.save();
+        ctx.translate((this.x + this.width / 2) * scale, (this.y + this.height / 2) * scale);
+        
+        // Crtanje štita (plavi krug sa ivicom)
+        ctx.fillStyle = '#0984e3';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3 * scale;
+        ctx.beginPath();
+        ctx.arc(0, 0, 15 * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Tekst "S" ili simbol na štitu
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${20 * scale}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('S', 0, 2 * scale);
+        
+        ctx.restore();
+    }
+
+    update() {
+        this.x -= gameSpeed;
+    }
+}
+
 function spawnObstacle() {
     if (obstacleTimer <= 0) {
         const type = Math.random() > 0.5 ? 'low' : 'high';
@@ -248,6 +309,15 @@ function spawnObstacle() {
         obstacleTimer = Math.floor(Math.random() * 40 + 80);
     }
     obstacleTimer--;
+}
+
+function spawnPowerUp() {
+    if (powerUpTimer <= 0) {
+        powerUps.push(new PowerUp());
+        // Štitovi se pojavljuju ređe (svakih ~10-15 sekundi)
+        powerUpTimer = Math.floor(Math.random() * 400 + 600);
+    }
+    powerUpTimer--;
 }
 
 function checkCollision(n, o) {
@@ -271,12 +341,20 @@ function checkCollision(n, o) {
 
 function resetGame() {
     score = 0;
+    lives = 3;
+    shields = 0;
+    livesElement.innerText = '❤️❤️❤️';
+    shieldElement.innerText = '🛡️ 0';
     gameSpeed = 3.5;
     obstacles = [];
+    powerUps = [];
     obstacleTimer = 40; // Prva prepreka dolazi brzo nakon starta
+    powerUpTimer = 200;
     ninja.y = GROUND_Y - ninja.height;
+    ninja.invulnerabilityTimer = 0;
     gameState = 'PLAYING';
     startMessage.style.display = 'none';
+    gameOverScreen.style.display = 'none';
 }
 
 function gameLoop() {
@@ -301,15 +379,51 @@ function gameLoop() {
     if (gameState === 'PLAYING') {
         frameCount++;
         spawnObstacle();
+        spawnPowerUp();
+
+        // Ažuriranje i crtanje Power-upova (štitova)
+        for (let i = powerUps.length - 1; i >= 0; i--) {
+            powerUps[i].update();
+            powerUps[i].draw();
+
+            // Sakupljanje štita
+            if (checkCollision(ninja, powerUps[i])) {
+                shields++;
+                shieldElement.innerText = `🛡️ ${shields}`;
+                powerUps.splice(i, 1);
+            } else if (powerUps[i].x + powerUps[i].width < 0) {
+                powerUps.splice(i, 1);
+            }
+        }
         
         for (let i = obstacles.length - 1; i >= 0; i--) {
             obstacles[i].update();
             obstacles[i].draw();
 
             if (checkCollision(ninja, obstacles[i])) {
-                gameState = 'GAMEOVER';
-                startMessage.innerText = 'Game Over! Tap to Restart';
-                startMessage.style.display = 'block';
+                if (ninja.invulnerabilityTimer > 0) continue; // Ignoriši sudar ako je nindža neranjiv
+
+                // Ako ima štit, troši se štit umesto života
+                if (shields > 0) {
+                    shields--;
+                    shieldElement.innerText = `🛡️ ${shields}`;
+                } else {
+                    lives--;
+                    ninja.invulnerabilityTimer = 120; // 2 sekunde neranjivosti (pri 60fps)
+                    let hearts = '';
+                    for(let h=0; h<lives; h++) hearts += '❤️';
+                    livesElement.innerText = hearts;
+                }
+                
+                obstacles.splice(i, 1); // Uklanjamo prepreku da ne udari više puta
+
+                if (lives <= 0) {
+                    gameState = 'GAMEOVER';
+                    gameOverScreen.style.display = 'flex';
+                    goScoreElement.innerText = score;
+                    goBestElement.innerText = highScore;
+                }
+                continue;
             }
 
             if (obstacles[i].x + obstacles[i].width < 0) {
@@ -331,10 +445,11 @@ function gameLoop() {
 
 // Kontrole
 const handleInput = (type) => {
-    if (gameState !== 'PLAYING') {
+    if (gameState === 'START') {
         resetGame();
         return;
     }
+    if (gameState === 'GAMEOVER') return; // Čekamo klik na dugme
     if (type === 'jump_on') ninja.jump(true);
     if (type === 'jump_off') ninja.jump(false);
     if (type === 'duck_on') ninja.isDucking = true;
@@ -360,5 +475,8 @@ canvas.addEventListener('touchend', (e) => {
     handleInput('jump_off');
     handleInput('duck_off');
 });
+
+// Restart dugme
+restartBtn.addEventListener('click', resetGame);
 
 gameLoop();

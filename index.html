@@ -16,8 +16,18 @@
         <canvas id="gameCanvas"></canvas>
         <div id="ui-layer">
             <div id="score-board">Score: 0</div>
+            <div id="lives-board" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 24px;">❤️❤️❤️</div>
+            <div id="shield-board" style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: bold; color: #0984e3;">🛡️ 0</div>
             <div id="high-score" style="position: absolute; top: 20px; right: 20px; font-family: sans-serif; font-size: 24px; font-weight: bold; color: #2d3436;">Best: 0</div>
             <div id="start-message">Tap or Press Space to Start</div>
+            <div id="game-over-screen" style="display: none;">
+                <h1>GAME OVER</h1>
+                <div class="stats">
+                    <p>Score: <span id="go-score">0</span></p>
+                    <p>Best: <span id="go-best">0</span></p>
+                </div>
+                <button id="restart-btn">Try Again</button>
+            </div>
         </div>
     </div>
     <script src="game.js"></script>
