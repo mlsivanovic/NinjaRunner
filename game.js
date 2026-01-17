@@ -9,6 +9,7 @@ const gameOverScreen = document.getElementById('game-over-screen');
 const goScoreElement = document.getElementById('go-score');
 const goBestElement = document.getElementById('go-best');
 const restartBtn = document.getElementById('restart-btn');
+const muteBtn = document.getElementById('mute-btn');
 
 // Zvučni efekti
 const jumpSound = new Audio('jump.mp3');
@@ -74,6 +75,17 @@ const backgroundLayers = [
 let gameState = 'START'; // START, PLAYING, GAMEOVER
 let score = 0;
 let lives = 3;
+
+let isMuted = localStorage.getItem('ninjaMuted') === 'true';
+muteBtn.innerText = isMuted ? '🔇' : '🔊';
+
+muteBtn.addEventListener('click', () => {
+    isMuted = !isMuted;
+    localStorage.setItem('ninjaMuted', isMuted);
+    muteBtn.innerText = isMuted ? '🔇' : '🔊';
+    muteBtn.blur(); // Sklanja fokus da Space taster ne bi opet aktivirao dugme
+});
+
 let shields = 0;
 let highScore = parseInt(localStorage.getItem('ninjaHighScore')) || 0;
 highScoreElement.innerText = `Best: ${highScore}`;
@@ -213,8 +225,10 @@ const ninja = {
                 this.isJumping = true;
                 this.jumpCount++;
                 
-                jumpSound.currentTime = 0; // Resetuje zvuk za brze skokove (double jump)
-                jumpSound.play().catch(e => console.log(e));
+                if (!isMuted) {
+                    jumpSound.currentTime = 0; // Resetuje zvuk za brze skokove (double jump)
+                    jumpSound.play().catch(e => console.log(e));
+                }
             }
         } else {
             this.isJumping = false;
@@ -426,7 +440,9 @@ function gameLoop() {
 
                 if (lives <= 0) {
                     gameState = 'GAMEOVER';
-                    gameOverSound.play().catch(e => console.log(e));
+                    if (!isMuted) {
+                        gameOverSound.play().catch(e => console.log(e));
+                    }
                     gameOverScreen.style.display = 'flex';
                     goScoreElement.innerText = score;
                     goBestElement.innerText = highScore;
