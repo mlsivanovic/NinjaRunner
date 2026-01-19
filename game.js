@@ -186,6 +186,7 @@ let gameSpeed = 3.5;
 let obstacles = [];
 let powerUps = [];
 let coins = [];
+let flyingCoins = [];
 let frameCount = 0;
 let particles = [];
 let obstacleTimer = 0;
@@ -483,6 +484,61 @@ class Coin {
     }
 }
 
+class FlyingCoin {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 30;
+        this.height = 30;
+        this.speed = 15;
+    }
+
+    update() {
+        const scale = getScale();
+        // Ciljamo ikonicu novčanika (top: 60px, left: 20px)
+        // Pretvaramo u logičke koordinate (dodajemo malo offseta da gađa centar teksta)
+        const targetX = 35 / scale; 
+        const targetY = 75 / scale;
+
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist < this.speed) {
+            return true; // Stigao
+        }
+
+        const angle = Math.atan2(dy, dx);
+        this.x += Math.cos(angle) * this.speed;
+        this.y += Math.sin(angle) * this.speed;
+        this.speed *= 1.1; // Ubrzanje
+        return false;
+    }
+
+    draw() {
+        // Koristimo istu logiku crtanja kao za običan novčić, ali bez lebdenja
+        const scale = getScale();
+        const drawX = (this.x + this.width/2) * scale;
+        const drawY = (this.y + this.height/2) * scale;
+        const radius = (this.width/2) * scale;
+
+        ctx.save();
+        ctx.translate(drawX, drawY);
+        
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
 class Particle {
     constructor(x, y, color) {
         this.x = x;
@@ -672,6 +728,7 @@ function resetGame() {
     obstacles = [];
     powerUps = [];
     coins = [];
+    flyingCoins = [];
     particles = [];
     obstacleTimer = 40; // Prva prepreka dolazi brzo nakon starta
     powerUpTimer = 200;
@@ -743,14 +800,33 @@ function gameLoop() {
 
             if (checkCollision(ninja, coins[i])) {
                 score += 10; // Bonus poeni
-                totalCoins++; // Dodajemo u novčanik
-                localStorage.setItem('ninjaTotalCoins', totalCoins);
-                walletElement.innerText = `💰 ${totalCoins}`;
                 scoreBoard.innerText = `Score: ${score}`;
                 createParticles(coins[i].x + coins[i].width/2, coins[i].y + coins[i].height/2, '#f1c40f', 10);
+                
+                // Kreiramo leteći novčić umesto trenutnog dodavanja
+                flyingCoins.push(new FlyingCoin(coins[i].x, coins[i].y));
+                
                 coins.splice(i, 1);
             } else if (coins[i].x + coins[i].width < 0) {
                 coins.splice(i, 1);
+            }
+        }
+
+        // Ažuriranje letećih novčića
+        for (let i = flyingCoins.length - 1; i >= 0; i--) {
+            if (flyingCoins[i].update()) {
+                // Kada stigne do novčanika
+                totalCoins++;
+                localStorage.setItem('ninjaTotalCoins', totalCoins);
+                walletElement.innerText = `💰 ${totalCoins}`;
+                // Efekat pulsiranja teksta
+                walletElement.style.transition = "transform 0.1s";
+                walletElement.style.transform = "scale(1.3)";
+                setTimeout(() => walletElement.style.transform = "scale(1)", 100);
+                
+                flyingCoins.splice(i, 1);
+            } else {
+                flyingCoins[i].draw();
             }
         }
 

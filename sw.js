@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ninja-v12';
+const CACHE_NAME = 'ninja-v14';
 const ASSETS = [
   './',
   './index.html',
