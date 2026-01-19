@@ -11,6 +11,8 @@ const goBestElement = document.getElementById('go-best');
 const restartBtn = document.getElementById('restart-btn');
 const muteBtn = document.getElementById('mute-btn');
 const nightModeBtn = document.getElementById('night-mode-btn');
+const bossHud = document.getElementById('boss-hud');
+const bossHpBar = document.getElementById('boss-hp-bar');
 
 // Zvučni efekti
 const jumpSound = new Audio('jump.mp3');
@@ -141,6 +143,8 @@ let particles = [];
 let obstacleTimer = 0;
 let powerUpTimer = 0;
 let coinTimer = 0;
+let boss = null;
+let nextBossScore = 1000;
 
 // Inicijalna primena moda (mora biti posle definisanja backgroundLayers, ali pošto su oni const gore, ovo je ok ovde ako pomerimo poziv ispod)
 // Zapravo, backgroundLayers je definisan iznad, tako da možemo pozvati funkciju odmah.
@@ -460,6 +464,100 @@ class Particle {
     }
 }
 
+class Boss {
+    constructor() {
+        this.width = 120;
+        this.height = 120;
+        this.x = canvas.width / getScale() + 150; // Počinje van ekrana desno
+        this.targetX = (canvas.width / getScale()) - 180; // Dolazi do desne ivice
+        this.y = GROUND_Y - 200; 
+        this.hp = 10;
+        this.maxHp = 10;
+        this.attackTimer = 0;
+        this.state = 'ENTERING'; // ENTERING, FIGHTING
+        this.wobble = 0;
+    }
+
+    update() {
+        this.wobble += 0.05;
+        this.y = (GROUND_Y - 200) + Math.sin(this.wobble) * 20; // Lebdi gore-dole
+
+        if (this.state === 'ENTERING') {
+            if (this.x > this.targetX) {
+                this.x -= 3;
+            } else {
+                this.state = 'FIGHTING';
+                bossHud.style.display = 'block';
+                bossHpBar.style.width = '100%';
+            }
+        } else if (this.state === 'FIGHTING') {
+            this.attackTimer--;
+            if (this.attackTimer <= 0) {
+                this.attack();
+                this.attackTimer = 70 + Math.random() * 30; // Napada svake ~1-1.5 sekunde
+            }
+        }
+    }
+
+    attack() {
+        const type = Math.random() > 0.5 ? 'low' : 'high';
+        const projectile = new Obstacle(type);
+        projectile.x = this.x; // Projektil kreće od Bossa
+        projectile.isBossAttack = true; // Oznaka da je ovo Boss napad
+        obstacles.push(projectile);
+    }
+
+    draw() {
+        const scale = getScale();
+        ctx.save();
+        ctx.translate((this.x + this.width/2) * scale, (this.y + this.height/2) * scale);
+        
+        // Telo Bossa
+        ctx.fillStyle = '#c0392b'; // Crvena boja
+        if (isNightMode) ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(-this.width/2 * scale, -this.height/2 * scale, this.width * scale, this.height * scale);
+        
+        // Oči (ljute)
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(-30 * scale, -20 * scale);
+        ctx.lineTo(-10 * scale, -10 * scale);
+        ctx.lineTo(-30 * scale, 0);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(30 * scale, -20 * scale);
+        ctx.lineTo(10 * scale, -10 * scale);
+        ctx.lineTo(30 * scale, 0);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    takeDamage() {
+        this.hp--;
+        const pct = (this.hp / this.maxHp) * 100;
+        bossHpBar.style.width = `${pct}%`;
+        createParticles(this.x + this.width/2, this.y + this.height/2, '#c0392b', 15);
+        
+        if (this.hp <= 0) {
+            // Boss poražen
+            createParticles(this.x + this.width/2, this.y + this.height/2, '#f1c40f', 100); // Velika eksplozija
+            score += 500; // Bonus za pobedu
+            // Spawnuj puno novčića kao nagradu
+            for(let i=0; i<5; i++) {
+                const c = new Coin();
+                c.x = this.x + i * 60;
+                c.y = GROUND_Y - 100;
+                coins.push(c);
+            }
+            boss = null;
+            bossHud.style.display = 'none';
+            nextBossScore += 1000;
+            obstacleTimer = 100; // Mala pauza pre nastavka normalnih prepreka
+        }
+    }
+}
+
 function spawnObstacle() {
     if (obstacleTimer <= 0) {
         const type = Math.random() > 0.5 ? 'low' : 'high';
@@ -526,6 +624,8 @@ function resetGame() {
     obstacleTimer = 40; // Prva prepreka dolazi brzo nakon starta
     powerUpTimer = 200;
     coinTimer = 0;
+    boss = null;
+    nextBossScore = 1000;
     ninja.y = GROUND_Y - ninja.height;
     ninja.invulnerabilityTimer = 0;
     gameState = 'PLAYING';
@@ -556,9 +656,20 @@ function gameLoop() {
     ninja.update();
     ninja.draw();
 
+    // Boss logika
+    if (gameState === 'PLAYING' && !boss && score >= nextBossScore) {
+        boss = new Boss();
+    }
+    if (boss) {
+        boss.update();
+        boss.draw();
+    }
+
     if (gameState === 'PLAYING') {
         frameCount++;
-        spawnObstacle();
+        // Ako je Boss tu, on spawnuje prepreke, inače idu normalno
+        if (!boss) spawnObstacle();
+        
         spawnPowerUp();
         spawnCoin();
 
@@ -639,6 +750,12 @@ function gameLoop() {
 
             if (obstacles[i].x + obstacles[i].width < 0) {
                 obstacles.splice(i, 1);
+                
+                // Ako je prepreka prošla (izbegnuta) i Boss je aktivan, Boss prima štetu
+                if (boss && boss.state === 'FIGHTING') {
+                    boss.takeDamage();
+                }
+
                 score++;
                 scoreBoard.innerText = `Score: ${score}`;
                 if (score > highScore) {
