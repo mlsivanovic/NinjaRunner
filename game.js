@@ -842,8 +842,14 @@ const handleInput = (type) => {
 };
 
 window.addEventListener('keydown', e => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') handleInput('jump_on');
-    if (e.code === 'ArrowDown') handleInput('duck_on');
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        handleInput('jump_on');
+    }
+    if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        handleInput('duck_on');
+    }
 });
 window.addEventListener('keyup', e => {
     if (e.code === 'Space' || e.code === 'ArrowUp') handleInput('jump_off');
