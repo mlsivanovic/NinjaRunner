@@ -10,6 +10,7 @@ const goScoreElement = document.getElementById('go-score');
 const goBestElement = document.getElementById('go-best');
 const restartBtn = document.getElementById('restart-btn');
 const muteBtn = document.getElementById('mute-btn');
+const nightModeBtn = document.getElementById('night-mode-btn');
 
 // Zvučni efekti
 const jumpSound = new Audio('jump.mp3');
@@ -95,6 +96,39 @@ muteBtn.addEventListener('click', () => {
     }
 });
 
+// Noćni mod
+let isNightMode = localStorage.getItem('ninjaNightMode') === 'true';
+
+function applyNightMode() {
+    nightModeBtn.innerText = isNightMode ? '☀️' : '🌙';
+    const container = document.getElementById('game-container');
+    
+    if (isNightMode) {
+        container.style.background = '#2d3436'; // Tamna pozadina
+        scoreBoard.style.color = '#dfe6e9';
+        highScoreElement.style.color = '#dfe6e9';
+        // Ažuriranje slojeva pozadine za noć
+        backgroundLayers[0].color = 'rgba(255, 255, 255, 0.05)'; // Bledi oblaci
+        backgroundLayers[1].color = '#636e72'; // Tamne planine
+        backgroundLayers[2].color = '#4b4b4b'; // Još tamnija brda
+    } else {
+        container.style.background = '#ffffff'; // Svetla pozadina
+        scoreBoard.style.color = '#000000';
+        highScoreElement.style.color = '#2d3436';
+        // Vraćanje dnevnih boja
+        backgroundLayers[0].color = 'rgba(0, 0, 0, 0.08)';
+        backgroundLayers[1].color = '#dfe6e9';
+        backgroundLayers[2].color = '#b2bec3';
+    }
+}
+
+nightModeBtn.addEventListener('click', () => {
+    isNightMode = !isNightMode;
+    localStorage.setItem('ninjaNightMode', isNightMode);
+    applyNightMode();
+    nightModeBtn.blur();
+});
+
 let shields = 0;
 let highScore = parseInt(localStorage.getItem('ninjaHighScore')) || 0;
 highScoreElement.innerText = `Best: ${highScore}`;
@@ -107,6 +141,9 @@ let particles = [];
 let obstacleTimer = 0;
 let powerUpTimer = 0;
 let coinTimer = 0;
+
+// Inicijalna primena moda (mora biti posle definisanja backgroundLayers, ali pošto su oni const gore, ovo je ok ovde ako pomerimo poziv ispod)
+// Zapravo, backgroundLayers je definisan iznad, tako da možemo pozvati funkciju odmah.
 
 const ninja = {
     x: 80,
@@ -151,7 +188,7 @@ const ninja = {
             ctx.shadowColor = '#0984e3';
         }
 
-        ctx.fillStyle = '#000000'; 
+        ctx.fillStyle = isNightMode ? '#dfe6e9' : '#000000'; // Nindža je beo noću, crn danju
 
         if (!this.isDucking) {
             // LJUDSKA FIGURA - STOJEĆI
@@ -265,7 +302,7 @@ class Obstacle {
         
         if (this.type === 'low') {
             // Šiljci
-            ctx.fillStyle = '#000000'; // Crne prepreke na beloj pozadini
+            ctx.fillStyle = isNightMode ? '#dfe6e9' : '#000000';
             ctx.beginPath();
             ctx.moveTo(-this.width/2 * scale, this.height/2 * scale);
             ctx.lineTo(-this.width/4 * scale, -this.height/2 * scale);
@@ -282,7 +319,7 @@ class Obstacle {
                 ctx.save();
                 ctx.translate(0, offsetY * scale);
                 ctx.rotate(this.rotation);
-                ctx.fillStyle = '#000000';
+                ctx.fillStyle = isNightMode ? '#dfe6e9' : '#000000';
                 for(let i=0; i<4; i++) {
                     ctx.rotate(Math.PI/2);
                     ctx.fillRect(-2 * scale, -shurikenSize/2 * scale, 4 * scale, shurikenSize * scale);
@@ -504,7 +541,7 @@ function gameLoop() {
     const scale = getScale();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // Crtanje poda
-    ctx.strokeStyle = '#2d3436';
+    ctx.strokeStyle = isNightMode ? '#dfe6e9' : '#2d3436'; // Boja linije poda
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y * scale);
@@ -652,5 +689,8 @@ canvas.addEventListener('touchend', (e) => {
 
 // Restart dugme
 restartBtn.addEventListener('click', resetGame);
+
+// Pozivamo funkciju za primenu moda na kraju inicijalizacije
+applyNightMode();
 
 gameLoop();
