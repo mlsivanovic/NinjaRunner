@@ -19,8 +19,11 @@
             <div id="lives-board" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 24px;">❤️❤️❤️</div>
             <div id="shield-board" style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: bold; color: #0984e3;">🛡️ 0</div>
             <div id="high-score" style="position: absolute; top: 20px; right: 20px; font-family: sans-serif; font-size: 24px; font-weight: bold; color: #2d3436;">Best: 0</div>
+            <div id="wallet-board" style="position: absolute; top: 20px; left: 20px; font-family: sans-serif; font-size: 24px; font-weight: bold; color: #f1c40f;">💰 0</div>
             <button id="mute-btn" style="position: absolute; top: 60px; right: 20px; background: none; border: none; font-size: 30px; cursor: pointer; pointer-events: auto;">🔊</button>
             <button id="night-mode-btn" style="position: absolute; top: 100px; right: 20px; background: none; border: none; font-size: 30px; cursor: pointer; pointer-events: auto;">🌙</button>
+            <button id="shop-btn" style="position: absolute; top: 140px; right: 20px; background: none; border: none; font-size: 30px; cursor: pointer; pointer-events: auto;">🛒</button>
+            <button id="pause-btn" style="position: absolute; top: 180px; right: 20px; background: none; border: none; font-size: 30px; cursor: pointer; pointer-events: auto;">⏸️</button>
             <div id="boss-hud" style="display: none; position: absolute; top: 140px; left: 50%; transform: translateX(-50%); width: 300px; height: 20px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px;">
                 <div id="boss-hp-bar" style="width: 100%; height: 100%; background: #e74c3c; border-radius: 8px; transition: width 0.2s;"></div>
             </div>
@@ -32,6 +35,11 @@
                     <p>Best: <span id="go-best">0</span></p>
                 </div>
                 <button id="restart-btn">Try Again</button>
+            </div>
+            <div id="shop-screen" style="display: none;">
+                <h2>Ninja Shop</h2>
+                <div id="skins-list"></div>
+                <button id="close-shop-btn">Close</button>
             </div>
         </div>
     </div>

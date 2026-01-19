@@ -13,6 +13,12 @@ const muteBtn = document.getElementById('mute-btn');
 const nightModeBtn = document.getElementById('night-mode-btn');
 const bossHud = document.getElementById('boss-hud');
 const bossHpBar = document.getElementById('boss-hp-bar');
+const walletElement = document.getElementById('wallet-board');
+const shopBtn = document.getElementById('shop-btn');
+const shopScreen = document.getElementById('shop-screen');
+const closeShopBtn = document.getElementById('close-shop-btn');
+const skinsListElement = document.getElementById('skins-list');
+const pauseBtn = document.getElementById('pause-btn');
 
 // Zvučni efekti
 const jumpSound = new Audio('jump.mp3');
@@ -98,6 +104,31 @@ muteBtn.addEventListener('click', () => {
     }
 });
 
+// Pauza
+let isPaused = false;
+
+function togglePause() {
+    if (gameState !== 'PLAYING') return;
+    isPaused = !isPaused;
+    pauseBtn.innerText = isPaused ? '▶️' : '⏸️';
+    
+    if (isPaused) {
+        bgMusic.pause();
+        // Crtamo "PAUSED" preko ekrana
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 60px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    } else {
+        if (!isMuted) bgMusic.play().catch(e => console.log(e));
+        gameLoop(); // Ponovo pokrećemo petlju
+    }
+}
+
 // Noćni mod
 let isNightMode = localStorage.getItem('ninjaNightMode') === 'true';
 
@@ -130,6 +161,23 @@ nightModeBtn.addEventListener('click', () => {
     applyNightMode();
     nightModeBtn.blur();
 });
+
+// Sistem skinova i novčića
+let totalCoins = parseInt(localStorage.getItem('ninjaTotalCoins')) || 0;
+walletElement.innerText = `💰 ${totalCoins}`;
+
+let unlockedSkins = JSON.parse(localStorage.getItem('ninjaUnlockedSkins')) || [0]; // Čuvamo indekse otključanih skinova
+let currentSkinIndex = parseInt(localStorage.getItem('ninjaCurrentSkin')) || 0;
+
+const skins = [
+    { name: 'Classic', price: 0, color: '#000000', nightColor: '#dfe6e9', headband: '#e74c3c' },
+    { name: 'Blue', price: 100, color: '#0984e3', nightColor: '#74b9ff', headband: '#ffffff' },
+    { name: 'Red', price: 200, color: '#d63031', nightColor: '#ff7675', headband: '#2d3436' },
+    { name: 'Green', price: 300, color: '#00b894', nightColor: '#55efc4', headband: '#e17055' },
+    { name: 'Purple', price: 500, color: '#6c5ce7', nightColor: '#a29bfe', headband: '#ffeaa7' },
+    { name: 'Gold', price: 1000, color: '#f1c40f', nightColor: '#ffeaa7', headband: '#000000' },
+    { name: 'Dark', price: 1500, color: '#2d3436', nightColor: '#636e72', headband: '#d63031' }
+];
 
 let shields = 0;
 let highScore = parseInt(localStorage.getItem('ninjaHighScore')) || 0;
@@ -192,7 +240,9 @@ const ninja = {
             ctx.shadowColor = '#0984e3';
         }
 
-        ctx.fillStyle = isNightMode ? '#dfe6e9' : '#000000'; // Nindža je beo noću, crn danju
+        const currentSkin = skins[currentSkinIndex];
+        // Koristimo boju skina, osim ako je noćni mod (tada koristimo nightColor definisan u skinu)
+        ctx.fillStyle = isNightMode ? currentSkin.nightColor : currentSkin.color;
 
         if (!this.isDucking) {
             // LJUDSKA FIGURA - STOJEĆI
@@ -224,7 +274,7 @@ const ninja = {
         // Povez (traka)
         if (gameState === 'PLAYING' && this.isGrounded && !this.isDucking) {
             this.animationFrame += 0.2;
-            ctx.strokeStyle = '#e74c3c';
+            ctx.strokeStyle = currentSkin.headband;
             ctx.lineWidth = 2 * scale;
             ctx.beginPath();
             ctx.moveTo(-drawW * 0.1, -drawH * 0.85);
@@ -293,9 +343,9 @@ class Obstacle {
     constructor(type) {
         this.type = type; // 'low' (preskoči) ili 'high' (prođi ispod)
         this.width = type === 'low' ? 100 : 120; 
-        this.height = type === 'low' ? 60 : 90; // Povećana visina za dupli šuriken
+        this.height = type === 'low' ? 60 : 130; // Još veća visina za tri šurikena
         this.x = canvas.width / getScale(); // Spawnuje se tačno na desnoj ivici ekrana
-        this.y = type === 'low' ? GROUND_Y - this.height : GROUND_Y - 135; // Podignuto da blokira skok
+        this.y = type === 'low' ? GROUND_Y - this.height : GROUND_Y - 175; // Podignuto visoko da blokira skok
         this.rotation = 0;
     }
 
@@ -315,7 +365,7 @@ class Obstacle {
             ctx.lineTo(this.width/2 * scale, this.height/2 * scale);
             ctx.fill();
         } else {
-            // Rotirajući šurikeni (Dupli)
+            // Rotirajući šurikeni (Tri komada - ZID)
             this.rotation += 0.2;
             const shurikenSize = 35;
 
@@ -336,8 +386,9 @@ class Obstacle {
                 ctx.restore();
             };
 
-            drawShuriken(-25); // Gornji
-            drawShuriken(25);  // Donji
+            drawShuriken(-40); // Gornji
+            drawShuriken(0);   // Srednji
+            drawShuriken(40);  // Donji
         }
         ctx.restore();
     }
@@ -471,16 +522,16 @@ class Boss {
         this.x = canvas.width / getScale() + 150; // Počinje van ekrana desno
         this.targetX = (canvas.width / getScale()) - 180; // Dolazi do desne ivice
         this.y = GROUND_Y - 200; 
-        this.hp = 10;
-        this.maxHp = 10;
+        this.hp = 20;
+        this.maxHp = 20;
         this.attackTimer = 0;
         this.state = 'ENTERING'; // ENTERING, FIGHTING
         this.wobble = 0;
     }
 
     update() {
-        this.wobble += 0.05;
-        this.y = (GROUND_Y - 200) + Math.sin(this.wobble) * 20; // Lebdi gore-dole
+        this.wobble += 0.1;
+        this.y = (GROUND_Y - 200) + Math.sin(this.wobble) * 40; // Lebdi gore-dole (brže i veći raspon)
 
         if (this.state === 'ENTERING') {
             if (this.x > this.targetX) {
@@ -494,7 +545,8 @@ class Boss {
             this.attackTimer--;
             if (this.attackTimer <= 0) {
                 this.attack();
-                this.attackTimer = 70 + Math.random() * 30; // Napada svake ~1-1.5 sekunde
+                // Duplo brže: napada svake ~0.3-0.5 sekunde
+                this.attackTimer = 20 + Math.random() * 10; 
             }
         }
     }
@@ -542,7 +594,7 @@ class Boss {
         if (this.hp <= 0) {
             // Boss poražen
             createParticles(this.x + this.width/2, this.y + this.height/2, '#f1c40f', 100); // Velika eksplozija
-            score += 500; // Bonus za pobedu
+            score += 1000; // Bonus za pobedu
             // Spawnuj puno novčića kao nagradu
             for(let i=0; i<5; i++) {
                 const c = new Coin();
@@ -638,6 +690,8 @@ function resetGame() {
 }
 
 function gameLoop() {
+    if (isPaused) return; // Ako je pauzirano, ne radimo update ni draw
+
     const scale = getScale();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // Crtanje poda
@@ -689,6 +743,9 @@ function gameLoop() {
 
             if (checkCollision(ninja, coins[i])) {
                 score += 10; // Bonus poeni
+                totalCoins++; // Dodajemo u novčanik
+                localStorage.setItem('ninjaTotalCoins', totalCoins);
+                walletElement.innerText = `💰 ${totalCoins}`;
                 scoreBoard.innerText = `Score: ${score}`;
                 createParticles(coins[i].x + coins[i].width/2, coins[i].y + coins[i].height/2, '#f1c40f', 10);
                 coins.splice(i, 1);
@@ -793,6 +850,11 @@ window.addEventListener('keyup', e => {
     if (e.code === 'ArrowDown') handleInput('duck_off');
 });
 
+// Prečica za pauzu na slovo P
+window.addEventListener('keydown', e => {
+    if (e.code === 'KeyP') togglePause();
+});
+
 // Touch kontrole (Leva strana skok, desna čučanj)
 canvas.addEventListener('touchstart', e => {
     const touchX = e.touches[0].clientX;
@@ -802,6 +864,67 @@ canvas.addEventListener('touchstart', e => {
 canvas.addEventListener('touchend', (e) => {
     handleInput('jump_off');
     handleInput('duck_off');
+});
+
+// Shop Logika
+function renderShop() {
+    skinsListElement.innerHTML = '';
+    skins.forEach((skin, index) => {
+        const item = document.createElement('div');
+        item.className = `skin-item ${index === currentSkinIndex ? 'selected' : ''}`;
+        
+        const isUnlocked = unlockedSkins.includes(index);
+        const btnText = index === currentSkinIndex ? 'Equipped' : (isUnlocked ? 'Equip' : `Buy (${skin.price})`);
+        const btnClass = index === currentSkinIndex ? 'equipped' : (isUnlocked ? 'equip' : 'buy');
+        
+        item.innerHTML = `
+            <div style="width: 30px; height: 30px; background: ${skin.color}; border-radius: 50%; margin: 0 auto 10px;"></div>
+            <strong>${skin.name}</strong>
+            <button class="${btnClass}" onclick="handleShopAction(${index})">${btnText}</button>
+        `;
+        skinsListElement.appendChild(item);
+    });
+}
+
+window.handleShopAction = (index) => {
+    if (unlockedSkins.includes(index)) {
+        // Equip
+        currentSkinIndex = index;
+        localStorage.setItem('ninjaCurrentSkin', currentSkinIndex);
+        renderShop();
+    } else {
+        // Buy
+        const skin = skins[index];
+        if (totalCoins >= skin.price) {
+            totalCoins -= skin.price;
+            localStorage.setItem('ninjaTotalCoins', totalCoins);
+            walletElement.innerText = `💰 ${totalCoins}`;
+            unlockedSkins.push(index);
+            localStorage.setItem('ninjaUnlockedSkins', JSON.stringify(unlockedSkins));
+            // Auto equip after buy
+            currentSkinIndex = index;
+            localStorage.setItem('ninjaCurrentSkin', currentSkinIndex);
+            renderShop();
+        } else {
+            alert('Not enough coins!');
+        }
+    }
+};
+
+shopBtn.addEventListener('click', () => {
+    if (gameState === 'START' || gameState === 'GAMEOVER') {
+        renderShop();
+        shopScreen.style.display = 'flex';
+    }
+});
+
+pauseBtn.addEventListener('click', () => {
+    togglePause();
+    pauseBtn.blur();
+});
+
+closeShopBtn.addEventListener('click', () => {
+    shopScreen.style.display = 'none';
 });
 
 // Restart dugme

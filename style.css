@@ -92,3 +92,52 @@ canvas {
     border-radius: 50px;
     cursor: pointer;
 }
+
+#shop-screen {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(45, 52, 54, 0.98);
+    padding: 30px;
+    border-radius: 20px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    width: 80%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#skins-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 15px;
+}
+
+.skin-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+
+.skin-item.selected {
+    border-color: #0984e3;
+    background: rgba(9, 132, 227, 0.2);
+}
+
+.skin-item button {
+    margin-top: 5px;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+}
