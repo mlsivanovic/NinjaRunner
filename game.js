@@ -101,9 +101,12 @@ highScoreElement.innerText = `Best: ${highScore}`;
 let gameSpeed = 3.5;
 let obstacles = [];
 let powerUps = [];
+let coins = [];
 let frameCount = 0;
+let particles = [];
 let obstacleTimer = 0;
 let powerUpTimer = 0;
+let coinTimer = 0;
 
 const ninja = {
     x: 80,
@@ -249,9 +252,9 @@ class Obstacle {
     constructor(type) {
         this.type = type; // 'low' (preskoči) ili 'high' (prođi ispod)
         this.width = type === 'low' ? 100 : 120; 
-        this.height = type === 'low' ? 60 : 30;
+        this.height = type === 'low' ? 60 : 90; // Povećana visina za dupli šuriken
         this.x = canvas.width / getScale(); // Spawnuje se tačno na desnoj ivici ekrana
-        this.y = type === 'low' ? GROUND_Y - this.height : GROUND_Y - 75;
+        this.y = type === 'low' ? GROUND_Y - this.height : GROUND_Y - 135; // Podignuto da blokira skok
         this.rotation = 0;
     }
 
@@ -271,19 +274,29 @@ class Obstacle {
             ctx.lineTo(this.width/2 * scale, this.height/2 * scale);
             ctx.fill();
         } else {
-            // Rotirajući šuriken
+            // Rotirajući šurikeni (Dupli)
             this.rotation += 0.2;
-            ctx.rotate(this.rotation);
-            ctx.fillStyle = '#000000';
-            for(let i=0; i<4; i++) {
-                ctx.rotate(Math.PI/2);
-                ctx.fillRect(-2 * scale, -this.height/2 * scale, 4 * scale, this.height * scale);
-                ctx.beginPath();
-                ctx.moveTo(0, -this.height/2 * scale);
-                ctx.lineTo(10 * scale, -this.height/4 * scale);
-                ctx.lineTo(0, 0);
-                ctx.fill();
-            }
+            const shurikenSize = 35;
+
+            const drawShuriken = (offsetY) => {
+                ctx.save();
+                ctx.translate(0, offsetY * scale);
+                ctx.rotate(this.rotation);
+                ctx.fillStyle = '#000000';
+                for(let i=0; i<4; i++) {
+                    ctx.rotate(Math.PI/2);
+                    ctx.fillRect(-2 * scale, -shurikenSize/2 * scale, 4 * scale, shurikenSize * scale);
+                    ctx.beginPath();
+                    ctx.moveTo(0, -shurikenSize/2 * scale);
+                    ctx.lineTo(10 * scale, -shurikenSize/4 * scale);
+                    ctx.lineTo(0, 0);
+                    ctx.fill();
+                }
+                ctx.restore();
+            };
+
+            drawShuriken(-25); // Gornji
+            drawShuriken(25);  // Donji
         }
         ctx.restore();
     }
@@ -331,6 +344,85 @@ class PowerUp {
     }
 }
 
+class Coin {
+    constructor() {
+        this.width = 30;
+        this.height = 30;
+        this.x = canvas.width / getScale();
+        // Novčići se pojavljuju na različitim visinama (pri zemlji ili za skok)
+        this.y = GROUND_Y - 40 - Math.random() * 150; 
+        this.wobble = Math.random() * Math.PI * 2;
+    }
+
+    update() {
+        this.x -= gameSpeed;
+        this.wobble += 0.1; // Animacija lebdenja
+    }
+
+    draw() {
+        const scale = getScale();
+        const drawX = (this.x + this.width/2) * scale;
+        // Dodajemo sinusnu funkciju za efekat lebdenja gore-dole
+        const drawY = (this.y + this.height/2 + Math.sin(this.wobble) * 5) * scale;
+        const radius = (this.width/2) * scale;
+
+        ctx.save();
+        ctx.translate(drawX, drawY);
+        
+        // Zlatni krug
+        ctx.fillStyle = '#f1c40f';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Unutrašnji detalj (sjaj)
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Beli odsjaj
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.beginPath();
+        ctx.arc(-radius*0.3, -radius*0.3, radius*0.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.size = Math.random() * 3 + 2;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1.0;
+        this.decay = Math.random() * 0.05 + 0.02;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+    }
+
+    draw() {
+        const scale = getScale();
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x * scale, this.y * scale, this.size * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
 function spawnObstacle() {
     if (obstacleTimer <= 0) {
         const type = Math.random() > 0.5 ? 'low' : 'high';
@@ -348,6 +440,20 @@ function spawnPowerUp() {
         powerUpTimer = Math.floor(Math.random() * 400 + 600);
     }
     powerUpTimer--;
+}
+
+function spawnCoin() {
+    if (coinTimer <= 0) {
+        coins.push(new Coin());
+        coinTimer = Math.floor(Math.random() * 30 + 20); // Često pojavljivanje novčića
+    }
+    coinTimer--;
+}
+
+function createParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
 }
 
 function checkCollision(n, o) {
@@ -378,8 +484,11 @@ function resetGame() {
     gameSpeed = 3.5;
     obstacles = [];
     powerUps = [];
+    coins = [];
+    particles = [];
     obstacleTimer = 40; // Prva prepreka dolazi brzo nakon starta
     powerUpTimer = 200;
+    coinTimer = 0;
     ninja.y = GROUND_Y - ninja.height;
     ninja.invulnerabilityTimer = 0;
     gameState = 'PLAYING';
@@ -414,6 +523,31 @@ function gameLoop() {
         frameCount++;
         spawnObstacle();
         spawnPowerUp();
+        spawnCoin();
+
+        // Ažuriranje i crtanje čestica (iskri)
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) {
+                particles.splice(i, 1);
+            }
+        }
+
+        // Ažuriranje i crtanje novčića
+        for (let i = coins.length - 1; i >= 0; i--) {
+            coins[i].update();
+            coins[i].draw();
+
+            if (checkCollision(ninja, coins[i])) {
+                score += 10; // Bonus poeni
+                scoreBoard.innerText = `Score: ${score}`;
+                createParticles(coins[i].x + coins[i].width/2, coins[i].y + coins[i].height/2, '#f1c40f', 10);
+                coins.splice(i, 1);
+            } else if (coins[i].x + coins[i].width < 0) {
+                coins.splice(i, 1);
+            }
+        }
 
         // Ažuriranje i crtanje Power-upova (štitova)
         for (let i = powerUps.length - 1; i >= 0; i--) {
@@ -439,6 +573,7 @@ function gameLoop() {
 
                 // Ako ima štit, troši se štit umesto života
                 if (shields > 0) {
+                    createParticles(ninja.x + ninja.width / 2, ninja.y + ninja.height / 2, '#0984e3', 30);
                     shields--;
                     shieldElement.innerText = `🛡️ ${shields}`;
                 } else {
