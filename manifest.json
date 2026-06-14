@@ -1,11 +1,11 @@
 {
-  "name": "Ninja Runner",
-  "short_name": "NinjaRun",
-  "id": "ninja-runner",
+  "name": "Ninja Dash",
+  "short_name": "NinjaDash",
+  "id": "ninja-dash",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f5f6fa",
-  "theme_color": "#2d3436",
+  "background_color": "#05030f",
+  "theme_color": "#1a0b2e",
   "orientation": "landscape",
   "scope": "./",
   "icons": [

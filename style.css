@@ -1,3 +1,5 @@
+/* style.css — neon / Geometry Dash inspirisan izgled. */
+
 * {
     margin: 0;
     padding: 0;
@@ -7,137 +9,271 @@
 }
 
 body {
-    background-color: #1a1a1a;
+    background: #05030f;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     overflow: hidden;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #fff;
 }
 
 #game-container {
     position: relative;
     width: 100vw;
     height: 100vh;
-    background: #ffffff;
+    background: #05030f;
+    overflow: hidden;
 }
 
 canvas {
     width: 100%;
     height: 100%;
-    background-color: transparent;
     display: block;
 }
 
 #ui-layer {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    inset: 0;
     pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 20px;
+}
+
+/* ---------- HUD ---------- */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+
+#progress-wrap {
+    position: absolute;
+    top: 18px; left: 50%;
+    transform: translateX(-50%);
+    width: 55%; max-width: 600px; height: 16px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.5);
+}
+#progress-bar {
+    width: 0%; height: 100%;
+    background: linear-gradient(90deg, #00e5ff, #b14dff, #ff2e88);
+    box-shadow: 0 0 12px #00e5ff;
+    transition: width 0.12s linear;
 }
 
 #score-board {
-    font-size: 24px;
-    font-weight: bold;
-    color: #000000;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);}
-
-#start-message {
-    align-self: center;
-    margin-bottom: 20vh;
-    font-size: 20px;
-    background: rgba(231, 76, 60, 0.9);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 20px;
+    position: absolute; top: 16px; left: 20px;
+    font-size: 24px; font-weight: bold;
+    text-shadow: 0 0 8px #00e5ff, 0 0 2px #fff;
+}
+#lives-board {
+    position: absolute; top: 46px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 22px;
+}
+#coins-board {
+    position: absolute; top: 50px; left: 20px;
+    font-size: 22px; font-weight: bold; color: #ffd000;
+    text-shadow: 0 0 10px #ffae00;
+    transition: transform 0.1s;
+}
+#attempts-board {
+    position: absolute; top: 16px; left: 50%;
+    transform: translateX(-50%);
+    margin-top: 26px;
+    font-size: 18px; font-weight: bold;
+    text-shadow: 0 0 8px #b14dff;
+}
+#practice-hint {
+    position: absolute; bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px; opacity: 0.8;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 12px; border-radius: 12px;
+    display: none;
+}
+#boss-hud {
+    position: absolute; top: 80px; left: 50%;
+    transform: translateX(-50%);
+    width: 320px; height: 18px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #fff; border-radius: 10px;
+    display: none; overflow: hidden;
+}
+#boss-hp-bar {
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, #ff2e2e, #ff8a00);
+    box-shadow: 0 0 12px #ff2e2e;
+    transition: width 0.2s;
 }
 
-#game-over-screen {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(45, 52, 54, 0.95);
-    padding: 40px;
-    border-radius: 20px;
-    text-align: center;
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    min-width: 300px;
-    pointer-events: auto; /* Omogućava klik na dugme */
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+/* ---------- Gornje kontrole ---------- */
+#top-controls {
+    position: absolute; top: 16px; right: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: auto;
 }
-
-#game-over-screen h1 {
-    font-size: 40px;
-    color: #e74c3c;
-    margin: 0;
-}
-
-#restart-btn {
-    background: #0984e3;
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    font-size: 20px;
-    border-radius: 50px;
+.icon-btn {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    font-size: 24px; width: 46px; height: 46px;
     cursor: pointer;
 }
+.icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
 
-#shop-screen {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(45, 52, 54, 0.98);
-    padding: 30px;
-    border-radius: 20px;
-    text-align: center;
-    color: white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    width: 80%;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-    pointer-events: auto;
-    display: flex;
+/* ---------- Ekrani ---------- */
+.screen {
+    position: absolute; inset: 0;
+    display: none;
     flex-direction: column;
-    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    pointer-events: auto;
+    background: radial-gradient(circle at 50% 40%, rgba(40, 10, 80, 0.55), rgba(5, 3, 15, 0.92));
+    backdrop-filter: blur(3px);
+    padding: 20px;
+    overflow-y: auto;
 }
 
+.neon-title {
+    font-size: 64px; font-weight: 900; letter-spacing: 4px;
+    color: #fff;
+    text-shadow: 0 0 8px #00e5ff, 0 0 20px #00e5ff, 0 0 40px #b14dff;
+    animation: pulseTitle 1.6s ease-in-out infinite;
+}
+.neon-title span { color: #ff2e88; text-shadow: 0 0 8px #ff2e88, 0 0 24px #ff2e88; }
+.neon-title.small { font-size: 38px; }
+.neon-title.danger { color: #ff4d4d; text-shadow: 0 0 10px #ff2e2e, 0 0 30px #ff2e2e; }
+@keyframes pulseTitle {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+}
+
+.menu-btn {
+    pointer-events: auto;
+    min-width: 220px;
+    padding: 14px 28px;
+    font-size: 22px; font-weight: bold;
+    color: #fff;
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.25), rgba(177, 77, 255, 0.25));
+    border: 2px solid #00e5ff;
+    border-radius: 14px;
+    cursor: pointer;
+    text-shadow: 0 0 6px #00e5ff;
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+    transition: transform 0.08s, box-shadow 0.2s;
+}
+.menu-btn:hover { transform: scale(1.05); box-shadow: 0 0 26px rgba(0, 229, 255, 0.7); }
+.menu-btn.ghost {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: none; text-shadow: none;
+    font-size: 18px; min-width: 160px; padding: 10px 20px;
+}
+
+.toggle-btn {
+    pointer-events: auto;
+    padding: 10px 22px; font-size: 16px; font-weight: bold;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 30px; cursor: pointer;
+}
+.toggle-btn.on {
+    border-color: #39ff14; color: #39ff14;
+    box-shadow: 0 0 16px rgba(57, 255, 20, 0.5);
+}
+
+/* ---------- Level select ---------- */
+#levels-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    width: 90%; max-width: 760px;
+}
+.level-card {
+    background: linear-gradient(160deg, rgba(0, 229, 255, 0.12), rgba(177, 77, 255, 0.12));
+    border: 2px solid rgba(0, 229, 255, 0.6);
+    border-radius: 14px;
+    padding: 16px; text-align: center;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.25);
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+.level-card:hover { transform: translateY(-4px); box-shadow: 0 0 22px rgba(0, 229, 255, 0.55); }
+.level-card.locked {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: none; cursor: not-allowed; opacity: 0.55;
+}
+.level-card.done { border-color: #ffd000; box-shadow: 0 0 18px rgba(255, 208, 0, 0.5); }
+.level-num { font-size: 30px; font-weight: 900; color: #00e5ff; text-shadow: 0 0 10px #00e5ff; }
+.level-card.done .level-num { color: #ffd000; text-shadow: 0 0 10px #ffd000; }
+.level-name { font-size: 17px; font-weight: bold; margin: 6px 0; }
+.level-meta { font-size: 13px; opacity: 0.85; }
+
+/* ---------- Level complete ---------- */
+.stars { font-size: 44px; color: #ffd000; text-shadow: 0 0 16px #ffae00; letter-spacing: 6px; }
+.lc-name { font-size: 22px; font-weight: bold; }
+.lc-coins { font-size: 26px; color: #ffd000; text-shadow: 0 0 10px #ffae00; }
+
+/* ---------- Game over ---------- */
+.stats { font-size: 22px; text-align: center; line-height: 1.7; }
+
+/* ---------- Shop ---------- */
+.shop-coins { font-size: 22px; color: #ffd000; text-shadow: 0 0 10px #ffae00; margin-left: 10px; }
 #skins-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 14px;
+    width: 90%; max-width: 700px;
 }
-
 .skin-item {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 10px;
-    border-radius: 10px;
-    cursor: pointer;
+    background: rgba(255, 255, 255, 0.06);
     border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 14px 10px; text-align: center;
 }
-
-.skin-item.selected {
-    border-color: #0984e3;
-    background: rgba(9, 132, 227, 0.2);
-}
-
+.skin-item.selected { border-color: #00e5ff; box-shadow: 0 0 16px rgba(0, 229, 255, 0.5); }
+.skin-item strong { display: block; margin: 8px 0; font-size: 15px; }
 .skin-item button {
-    margin-top: 5px;
-    padding: 5px 10px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    width: 100%;
+    width: 100%; padding: 7px; border: none; border-radius: 8px;
+    background: #00e5ff; color: #05030f; font-weight: bold; cursor: pointer;
+}
+.skin-item.selected button { background: #ffd000; }
+
+/* Preview oblika u shop-u */
+.skin-preview {
+    width: 44px; height: 44px; margin: 0 auto;
+    background: var(--c);
+    box-shadow: 0 0 16px var(--t);
+}
+.skin-preview.shape-cube { border-radius: 8px; }
+.skin-preview.shape-circle { border-radius: 50%; }
+.skin-preview.shape-triangle {
+    background: transparent;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    background-color: var(--c);
+}
+.skin-preview.shape-ninja {
+    border-radius: 10px 10px 6px 6px;
+    position: relative;
+}
+.skin-preview.shape-ninja::after {
+    content: ''; position: absolute;
+    top: 30%; left: -4px; right: -4px; height: 6px;
+    background: var(--t); box-shadow: 0 0 8px var(--t);
+}
+
+/* ---------- Death flash ---------- */
+#death-flash {
+    position: absolute; inset: 0;
+    background: #ff2e2e;
+    opacity: 0; pointer-events: none;
+}
+
+@media (max-width: 600px) {
+    .neon-title { font-size: 44px; }
+    .menu-btn { min-width: 180px; font-size: 18px; }
 }
