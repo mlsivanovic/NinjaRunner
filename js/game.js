@@ -234,7 +234,61 @@ function collectCoin(coin) {
     audio.playSfx('coin');
 }
 
+// Sakupljanje dodatnog života — radi samo gde postoji pool (endless ili boss borba). Cap 5.
+function collectLife(e, index) {
+    runtime.entities.splice(index, 1);
+    spawnParticles(e.x + e.width / 2, e.y + e.height / 2, '#ff2e88', 16);
+    audio.playSfx('coin');
+    if (mode === 'ENDLESS') {
+        if (lives < 5) { lives++; ui.setLives(lives); }
+    } else if (boss) {
+        if (bossLives < 5) { bossLives++; ui.setLives(bossLives); }
+    }
+    // kampanja-bez-bosa: nema pool-a → graceful no-op
+}
+
+// Vrati igrača na tlo posle pada (endless/boss nastavljaju uz neranjivost).
+function respawnFromPit() {
+    player.y = GROUND_Y - player.height;
+    player.dy = 0;
+    player.isGrounded = true;
+    player.jumpCount = 0;
+    player.ground = null;
+    player.invuln = 90;
+}
+
+// Pad u provaliju — ZAOBILAZI štit. Endless/boss: -1 život i izvuci na tlo; kampanja: restart.
+function pitDeath() {
+    if (state !== 'PLAYING') return;
+    const c = playerCenter();
+    spawnParticles(c.x, GROUND_Y, player.skin.color, 30);
+    shake(14);
+    audio.playSfx('death');
+    if (mode === 'ENDLESS') {
+        lives--; ui.setLives(lives);
+        respawnFromPit();
+        if (lives <= 0) endlessGameOver();
+    } else if (boss) {
+        bossLives--; ui.setLives(bossLives);
+        respawnFromPit();
+        if (bossLives <= 0) campaignDeath();
+    } else {
+        campaignDeath();
+    }
+}
+
 function onHazardHit(entity, index) {
+    // ŠTIT: upija jedan pogodak u SVIM modovima (uključujući kampanju 1-pogodak)
+    if (player.shield && player.invuln <= 0) {
+        player.shield = false;
+        player.invuln = 60;
+        const c = playerCenter();
+        spawnParticles(c.x, c.y, '#00e5ff', 22);
+        shake(8);
+        audio.playSfx('orb');
+        if (entity) runtime.entities.splice(index, 1);
+        return false; // bez štete, ne prekida petlju
+    }
     if (mode === 'ENDLESS') {
         if (player.invuln > 0) return false;
         lives--;
@@ -270,44 +324,79 @@ function handleCollisions() {
     const hb = player.getHitbox();
     for (let i = runtime.entities.length - 1; i >= 0; i--) {
         const e = runtime.entities[i];
-        if (e.type === 'spike') {
-            if (overlap(hb, e.getHitbox())) { if (onHazardHit(e, i)) return; }
-        } else if (e.type === 'block') {
-            if (overlap(hb, e.getHitbox())) {
-                const onTop = player.isGrounded && Math.abs((player.y + player.height) - e.y) < 6;
-                if (!onTop) { if (onHazardHit(e, i)) return; }
-            }
+        const eb = e.getHitbox && e.getHitbox();
+        if (!eb || !overlap(hb, eb)) continue; // null hitbox (neaktivan laser / nestala crumble) ili nema preseka
+
+        if (e.type === 'spike' || e.type === 'saw' || e.type === 'duckbar') {
+            if (onHazardHit(e, i)) return;
+        } else if (e.type === 'laser') {
+            if (!e.inGap(hb)) { if (onHazardHit(null, i)) return; } // pogođen samo ako NISI ceo u otvoru
+        } else if (e.solidTop) {
+            // block / mover / crumble: vrh = sletanje (rešava resolveFloor), ostalo = hazard
+            const onTop = player.isGrounded && Math.abs((player.y + player.height) - eb.y) < 8;
+            if (!onTop) { if (onHazardHit(e.type === 'mover' ? null : e, i)) return; }
         } else if (e.type === 'coin') {
-            if (overlap(hb, e.getHitbox())) { collectCoin(e); runtime.entities.splice(i, 1); }
+            collectCoin(e); runtime.entities.splice(i, 1);
+        } else if (e.type === 'shield') {
+            player.shield = true;
+            spawnParticles(e.x + e.width / 2, e.y + e.height / 2, '#00e5ff', 14);
+            audio.playSfx('orb');
+            runtime.entities.splice(i, 1);
+        } else if (e.type === 'life') {
+            collectLife(e, i);
         } else if (e.type === 'pad') {
-            if (overlap(hb, e.getHitbox())) {
-                player.bounce(e.force);
-                shake(6);
-                audio.playSfx('pad');
-                spawnParticles(player.x + player.width / 2, player.y + player.height, '#ffe600', 10);
-            }
+            player.bounce(e.force);
+            shake(6);
+            audio.playSfx('pad');
+            spawnParticles(player.x + player.width / 2, player.y + player.height, '#ffe600', 10);
         }
         // 'orb' se aktivira na pritisak skoka (vidi doJump)
     }
 }
 
-// Pod: GROUND_Y ili vrh bloka na kome igrač stoji.
+// Pod: GROUND_Y ili vrh solidTop platforme (block / mover / crumble) na kojoj igrač stoji.
 function resolveFloor() {
-    let floorY = GROUND_Y;
     const hb = player.getHitbox();
-    for (const e of runtime.entities) {
-        if (e.type !== 'block') continue;
-        const b = e.getHitbox();
-        if (hb.x < b.x + b.w && hb.x + hb.w > b.x) {
-            const top = e.y;
-            const feet = player.y + player.height;
-            const prevFeet = feet - player.dy;
-            if (player.dy >= 0 && feet >= top && prevFeet <= top + 8) {
-                floorY = Math.min(floorY, top);
-            }
+    const feet = player.y + player.height;
+    const prevFeet = feet - player.dy;
+    const pcx = player.x + player.width / 2;
+
+    // Provalije: ako je centar igrača iznad rupe, nema osnovnog tla (preskoči dok je neranjiv).
+    let overPit = false;
+    if (player.invuln <= 0) {
+        for (const e of runtime.entities) {
+            if (e.type !== 'pit') continue;
+            if (pcx > e.x + 6 && pcx < e.x + e.width - 6) { overPit = true; break; }
         }
     }
-    player.resolveFloor(floorY);
+
+    let floorY = overPit ? Infinity : GROUND_Y;
+    let support = null;
+
+    for (const e of runtime.entities) {
+        if (!e.solidTop) continue;
+        const b = e.getHitbox && e.getHitbox();
+        if (!b) continue;                                  // nestala crumble nije pod
+        if (hb.x + hb.w <= b.x || hb.x >= b.x + b.w) continue; // bez horizontalnog preseka
+        const top = b.y;
+        const landing = player.dy >= 0 && feet >= top && prevFeet <= top + 10;       // padaš na vrh
+        const riding  = player.ground === e && player.dy >= 0 && (top - feet) <= 18; // jašeš (platforma pala ispod nogu)
+        if ((landing || riding) && top < floorY) { floorY = top; support = e; }
+    }
+
+    if (support && support.type === 'mover') {
+        // čvrsto prati pokretnu platformu (i gore i dole, da ne treperi)
+        player.y = support.y - player.height;
+        player.dy = 0;
+        player.isGrounded = true;
+        player.isJumping = false;
+        player.jumpCount = 0;
+        player.ground = support;
+    } else {
+        const landed = player.resolveFloor(floorY);
+        player.ground = landed ? support : null;
+        if (landed && support && support.type === 'crumble') support.trigger();
+    }
 }
 
 // ---------- Glavna logika frejma ----------
@@ -322,6 +411,7 @@ function tick() {
     resolveFloor();
     handleCollisions();
     if (state !== 'PLAYING') return; // smrt tokom kolizija
+    if (player.y > GROUND_Y + 130) { pitDeath(); if (state !== 'PLAYING') return; } // pad u provaliju
 
     // leteći novčići → novčanik
     for (let i = flyingCoins.length - 1; i >= 0; i--) {
@@ -369,7 +459,7 @@ function startCampaignBoss() {
     if (runtime.bossConfig) boss.hp = boss.maxHp = runtime.bossConfig.hp;
     runtime.spawnPaused = true;
     runtime.frozen = true;
-    runtime.entities = runtime.entities.filter(e => e.type === 'coin'); // očisti arenu (osim novčića)
+    runtime.entities = runtime.entities.filter(e => e.type === 'coin' || e.type === 'shield' || e.type === 'life'); // očisti arenu (osim pickupa)
     bossLives = BOSS_LIVES;
     ui.showBossHud(true);
     ui.setBossHp(100);
@@ -544,6 +634,7 @@ function frame() {
         // igrač (treperi kad je neranjiv)
         const flicker = player.invuln > 0 && Math.floor(frameCount / 4) % 2 === 0;
         if (state !== 'MENU' && !flicker) player.draw(fxOn, beat);
+        if (state !== 'MENU') player.drawShield(fxOn, beat);
     }
 
     ctx.restore();

@@ -10,7 +10,9 @@ export const SKINS = [
     { name: 'Spike',     shape: 'triangle', price: 300,  color: '#ff2e88', trail: '#ff2e88' },
     { name: 'Gold',      shape: 'cube',     price: 600,  color: '#ffd000', trail: '#ffd000' },
     { name: 'Plasma',    shape: 'circle',   price: 1000, color: '#b14dff', trail: '#e000ff' },
-    { name: 'Ghost',     shape: 'ninja',    price: 1500, color: '#a0ffe0', trail: '#00ffd0' }
+    { name: 'Ghost',     shape: 'ninja',    price: 1500, color: '#a0ffe0', trail: '#00ffd0' },
+    { name: 'Neon',      shape: 'triangle', price: 2000, color: '#00ff88', trail: '#39ff14' },
+    { name: 'Void',      shape: 'circle',   price: 3000, color: '#ff00e6', trail: '#b14dff' }
 ];
 
 export class Player {
@@ -37,6 +39,8 @@ export class Player {
         this.isDucking = false;
         this.jumpCount = 0;
         this.invuln = 0; // frejmovi neranjivosti (endless mod)
+        this.shield = false; // aktivni štit (upija jedan pogodak)
+        this.ground = null;  // platforma na kojoj trenutno stoji (za jahanje pokretnih)
         this.trail = [];
     }
 
@@ -155,17 +159,38 @@ export class Player {
         ctx.restore();
     }
 
+    // Prsten štita oko igrača (crta ga game.frame uvek, i tokom invuln-treperenja).
+    drawShield(fxOn, beatPulse) {
+        if (!this.shield) return;
+        const ctx = view.ctx, s = getScale();
+        const cx = (this.x + this.width / 2) * s;
+        const cy = (this.y + this.height / 2) * s;
+        const r = this.width * 0.85 * s;
+        ctx.save();
+        if (fxOn) { ctx.shadowBlur = (16 + beatPulse * 10) * s; ctx.shadowColor = '#00e5ff'; }
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 3 * s;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
     _drawShape(ctx, w, h, scale) {
-        const s = Math.min(w, h);
+        // Čučanj: spljošten oblik (širi nego viši); inače kvadratno.
+        const sw = this.isDucking ? w : Math.min(w, h);
+        const sh = this.isDucking ? h : Math.min(w, h);
+        const s = Math.min(sw, sh); // za unutrašnje detalje
         ctx.lineWidth = 3 * scale;
         if (this.skin.shape === 'cube') {
-            ctx.fillRect(-s / 2, -s / 2, s, s);
+            ctx.fillRect(-sw / 2, -sh / 2, sw, sh);
             ctx.fillStyle = '#ffffff';
             ctx.globalAlpha = 0.8;
             ctx.fillRect(-s * 0.18, -s * 0.18, s * 0.36, s * 0.36); // unutrašnji sjaj
         } else if (this.skin.shape === 'circle') {
             ctx.beginPath();
-            ctx.arc(0, 0, s / 2, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, sw / 2, sh / 2, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = 'rgba(255,255,255,0.85)';
             ctx.beginPath();
@@ -173,9 +198,9 @@ export class Player {
             ctx.fill();
         } else if (this.skin.shape === 'triangle') {
             ctx.beginPath();
-            ctx.moveTo(0, -s / 2);
-            ctx.lineTo(s / 2, s / 2);
-            ctx.lineTo(-s / 2, s / 2);
+            ctx.moveTo(0, -sh / 2);
+            ctx.lineTo(sw / 2, sh / 2);
+            ctx.lineTo(-sw / 2, sh / 2);
             ctx.closePath();
             ctx.fill();
         }
