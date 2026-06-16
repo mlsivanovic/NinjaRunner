@@ -42,7 +42,7 @@ const L1 = new LevelBuilder()
     .gap(380).spike()
     .gap(460).coinArc(4)
     .gap(420).spike(2)
-    .build({ id: 'l1', name: 'Neon Dojo', theme: 'cyanPurple', speed: 4.5, bpm: 128, music: 'assets/level1.mp3' });
+    .build({ id: 'l1', name: 'Neon Dojo', theme: 'cyanPurple', speed: 4.5, bpm: 128, music: 'assets/level1.mp3', boss: { hp: 12 } });
 
 // --- LEVEL 2: Sunset Sprint — padovi i blokovi ---
 const L2 = new LevelBuilder()
@@ -60,7 +60,7 @@ const L2 = new LevelBuilder()
     .gap(400).spike(3)
     .gap(440).block(1, 1).gap(70).block(1, 2)
     .gap(420).spike(2)
-    .build({ id: 'l2', name: 'Sunset Sprint', theme: 'cyanPurple', speed: 5, bpm: 132, music: 'assets/level2.mp3' });
+    .build({ id: 'l2', name: 'Sunset Sprint', theme: 'cyanPurple', speed: 5, bpm: 132, music: 'assets/level2.mp3', boss: { hp: 16 } });
 
 // --- LEVEL 3: Toxic Temple — orbovi i platforming ---
 const L3 = new LevelBuilder()
@@ -78,7 +78,7 @@ const L3 = new LevelBuilder()
     .gap(420).orb(GROUND_Y - 230)
     .gap(360).spike(3)
     .gap(440).block(1, 1).gap(60).spike(2)
-    .build({ id: 'l3', name: 'Toxic Temple', theme: 'toxic', speed: 5.4, bpm: 140, music: 'assets/level3.mp3' });
+    .build({ id: 'l3', name: 'Toxic Temple', theme: 'toxic', speed: 5.4, bpm: 140, music: 'assets/level3.mp3', boss: { hp: 20 } });
 
 // --- LEVEL 4: Deep Dive — brzo i gusto ---
 const L4 = new LevelBuilder()
@@ -97,7 +97,7 @@ const L4 = new LevelBuilder()
     .gap(440).spike(3)
     .gap(400).pad().gap(220).orb(GROUND_Y - 260)
     .gap(360).spike(4)
-    .build({ id: 'l4', name: 'Deep Dive', theme: 'deepBlue', speed: 6, bpm: 145, music: 'assets/level4.mp3' });
+    .build({ id: 'l4', name: 'Deep Dive', theme: 'deepBlue', speed: 6, bpm: 145, music: 'assets/level4.mp3', boss: { hp: 26 } });
 
 // --- LEVEL 5: Inferno Finale — najteži ---
 const L5 = new LevelBuilder()
@@ -117,7 +117,7 @@ const L5 = new LevelBuilder()
     .gap(300).spike(4)
     .gap(360).pad().gap(220).orb(GROUND_Y - 300)
     .gap(300).spike(4)
-    .build({ id: 'l5', name: 'Inferno Finale', theme: 'inferno', speed: 6.6, bpm: 150, music: 'assets/level5.mp3' });
+    .build({ id: 'l5', name: 'Inferno Finale', theme: 'inferno', speed: 6.6, bpm: 150, music: 'assets/level5.mp3', boss: { hp: 32 } });
 
 export const LEVELS = [L1, L2, L3, L4, L5];
 
@@ -147,6 +147,9 @@ export class LevelRuntime {
         this.elements = (level.elements || []).slice();
         this.zones = (level.zones || []).slice().sort((a, b) => a.x - b.x);
         this.TRANS = 500; // dužina lerp prelaza između tema
+        // Boss arena: malo pre cilja zaustavi napredak i pokreni borbu (null = bez bosa).
+        this.bossConfig = level.boss || null;
+        this.bossArenaX = this.bossConfig ? this.length - screenLogicalWidth() - 200 : Infinity;
         this.reset();
     }
 
@@ -155,6 +158,7 @@ export class LevelRuntime {
         this.spawnIndex = 0;
         this.entities = [];
         this.spawnPaused = false;
+        this.frozen = false; // zamrznut napredak sveta (tokom boss borbe)
         if (this.endless) { this._endlessCursor = 1500; this._appendEndlessChunk(); }
     }
 
@@ -169,7 +173,7 @@ export class LevelRuntime {
     }
 
     update() {
-        this.worldX += this.speed;
+        if (!this.frozen) this.worldX += this.speed; // zamrznuto tokom boss borbe → finished se ne okida
 
         // spawn elemenata koji ulaze sa desne strane (osim kad je spawn pauziran — npr. boss)
         const horizon = this.worldX + screenLogicalWidth() + 120;
@@ -195,6 +199,7 @@ export class LevelRuntime {
 
     get progress() { return Math.min(1, this.worldX / this.length); }
     get finished() { return !this.endless && this.worldX >= this.length; }
+    get reachedBossArena() { return this.worldX >= this.bossArenaX; }
 
     // Trenutna tema (uz glatke color-shift prelaze).
     getTheme() {

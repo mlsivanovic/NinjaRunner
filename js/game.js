@@ -23,6 +23,9 @@ let particles = [];
 let flyingCoins = [];
 let boss = null;
 let nextBossScore = 800;
+let campaignBossDone = false; // bos već pobeđen u ovom pokušaju (kampanja)
+let bossLives = 0;            // bafer pogodaka tokom kampanjske boss borbe
+const BOSS_LIVES = 3;
 
 let frameCount = 0;
 let floorScroll = 0;
@@ -65,6 +68,7 @@ function startLevel(level, practice) {
     runtime = new LevelRuntime(level, { endless: false });
     player.reset();
     particles = []; flyingCoins = []; boss = null;
+    campaignBossDone = false; bossLives = 0;
     runCoins = 0; attempts = 1; checkpoints = [0];
     audio.setMusic(level.music);
     ui.hideAllScreens();
@@ -173,8 +177,13 @@ function restartLevel() {
     runtime.reset();
     player.reset();
     particles = []; flyingCoins = [];
+    boss = null; campaignBossDone = false; bossLives = 0;
     audio.restartMusic();
     ui.setProgress(0);
+    ui.showBossHud(false);
+    ui.showLives(false);
+    ui.showProgress(true);
+    ui.showAttempts(true);
     state = 'PLAYING';
 }
 
@@ -188,6 +197,8 @@ function respawnCheckpoint() {
 
 function completeLevel() {
     state = 'COMPLETE';
+    ui.showBossHud(false);
+    ui.showLives(false);
     audio.pauseMusic();
     audio.playSfx('complete');
     const bonus = 100;
@@ -235,6 +246,20 @@ function onHazardHit(entity, index) {
         shake(12);
         audio.playSfx('death');
         if (lives <= 0) endlessGameOver();
+        return false;
+    }
+    // Kampanjska boss borba: bafer od nekoliko pogodaka (srca) umesto trenutne smrti.
+    if (boss) {
+        if (player.invuln > 0) return false;
+        bossLives--;
+        ui.setLives(bossLives);
+        player.invuln = 90;
+        if (entity) runtime.entities.splice(index, 1);
+        const c = playerCenter();
+        spawnParticles(c.x, c.y, player.skin.color, 25);
+        shake(12);
+        audio.playSfx('death');
+        if (bossLives <= 0) { campaignDeath(); return true; }
         return false;
     }
     campaignDeath();
@@ -288,9 +313,10 @@ function resolveFloor() {
 // ---------- Glavna logika frejma ----------
 function tick() {
     frameCount++;
-    floorScroll += runtime.speed;
-
-    backgroundLayers.forEach(l => l.update(runtime.speed));
+    if (!runtime.frozen) { // tokom boss borbe scena miruje (čista „arena")
+        floorScroll += runtime.speed;
+        backgroundLayers.forEach(l => l.update(runtime.speed));
+    }
     runtime.update();
     player.update();
     resolveFloor();
@@ -312,30 +338,56 @@ function tick() {
         ui.setScore(score);
         updateBoss();
     } else {
-        ui.setProgress(runtime.progress);
+        if (!boss) ui.setProgress(runtime.progress);
         if (mode === 'PRACTICE' && player.isGrounded &&
             runtime.worldX - checkpoints[checkpoints.length - 1] > 1800) {
             checkpoints.push(runtime.worldX);
         }
-        if (runtime.finished) completeLevel();
+        if (runtime.reachedBossArena && !boss && !campaignBossDone) startCampaignBoss();
+        if (boss) runBossFight();
+        else if (runtime.finished) completeLevel();
     }
 }
 
-// Boss u endless modu (lagana verzija): spawnuje spike-ove, gubi HP kad ih igrač izbegne.
+// Boss u endless modu: okida se na pragu skora pa delegira na zajedničku petlju.
 function updateBoss() {
-    if (!boss && score >= nextBossScore) {
-        boss = new Boss();
-        runtime.spawnPaused = true;
-        ui.showBossHud(true);
-        ui.setBossHp(100);
-    }
-    if (!boss) return;
+    if (!boss && score >= nextBossScore) startEndlessBoss();
+    if (boss) runBossFight();
+}
+
+function startEndlessBoss() {
+    boss = new Boss();
+    runtime.spawnPaused = true;
+    ui.showBossHud(true);
+    ui.setBossHp(100);
+}
+
+// Boss na kraju kampanjskog nivoa: skalirani HP, zamrznuta arena, bafer srca.
+function startCampaignBoss() {
+    if (mode === 'PRACTICE') { campaignBossDone = true; return; } // practice je za vežbanje platforminga
+    boss = new Boss();
+    if (runtime.bossConfig) boss.hp = boss.maxHp = runtime.bossConfig.hp;
+    runtime.spawnPaused = true;
+    runtime.frozen = true;
+    runtime.entities = runtime.entities.filter(e => e.type === 'coin'); // očisti arenu (osim novčića)
+    bossLives = BOSS_LIVES;
+    ui.showBossHud(true);
+    ui.setBossHp(100);
+    ui.showProgress(false);
+    ui.showAttempts(false);
+    ui.showLives(true);
+    ui.setLives(bossLives); // srca = preostali pogoci
+    audio.playSfx('orb');
+}
+
+// Zajednička petlja borbe (oba moda): kretanje, napadi, dodge-damage, HUD, pobeda.
+function runBossFight() {
     boss.update(runtime.speed, () => {
         const s = new Spike(screenLogicalWidth());
         s.fromBoss = true;
         runtime.entities.push(s);
     });
-    // HP pad: spike koji je prošao igrača (izbegnut)
+    // HP pad: spike koji je prošao igrača (uspešno izbegnut)
     for (const e of runtime.entities) {
         if (e.fromBoss && !e.counted && e.x + e.width < player.x) {
             e.counted = true;
@@ -344,15 +396,27 @@ function updateBoss() {
             spawnParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, currentTheme().obstacle, 12);
         }
     }
-    if (boss.hp <= 0) {
-        spawnParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, '#ffd000', 80);
+    if (boss.hp <= 0) defeatBoss();
+}
+
+// Pobeda nad bosom — zajednička eksplozija + nagrade/tranzicija po modu.
+function defeatBoss() {
+    spawnParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, '#ffd000', 80);
+    shake(14);
+    ui.showBossHud(false);
+    runtime.entities = runtime.entities.filter(e => !e.fromBoss); // ukloni zaostale šiljke
+    boss = null;
+    coins += 50; save(STORAGE_KEYS.coins, coins); ui.setCoins(coins);
+    if (mode === 'ENDLESS') {
+        audio.playSfx('complete');
         score += 500;
-        coins += 50; save(STORAGE_KEYS.coins, coins); ui.setCoins(coins);
-        boss = null;
         runtime.spawnPaused = false;
         nextBossScore += 800;
-        ui.showBossHud(false);
-        shake(14);
+    } else {
+        campaignBossDone = true;
+        ui.showLives(false);
+        player.invuln = 60; // zaštita do complete ekrana
+        setTimeout(() => { if (state === 'PLAYING') completeLevel(); }, 700);
     }
 }
 
