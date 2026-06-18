@@ -22,7 +22,7 @@ Smernice za AI agente koji rade na ovom projektu.
 | [js/audio.js](js/audio.js) | SFX/muzika (otporno na nedostajuće fajlove) + **beat clock** (`getBeatPulse(bpm)`). |
 | [js/input.js](js/input.js) | Tastatura + touch → akcije; `setHandlers()` registruje callback-ove. |
 | [js/player.js](js/player.js) | `Player` klasa: skok/duck, oblici, neon trag, glow, neranjivost. `SKINS[]`. |
-| [js/entities.js](js/entities.js) | `Spike`, `Block`, `JumpPad`, `JumpOrb`, `Coin`, `FlyingCoin`, `Particle`, `Boss`, `BackgroundLayer`. `GRID`. |
+| [js/entities.js](js/entities.js) | `Spike`, `Block`, `JumpPad`, `JumpOrb`, `Coin`, `DuckBarrier`, `Saw`, `MovingPlatform` (amp=0 → statični „ledge"), `Laser` (otvor po visini), `CrumblePlatform`, `Pit`, `Shield`, `ExtraLife`, `FlyingCoin`, `Particle`, `Shuriken` (boss, čučanj), `Boss`, `BackgroundLayer`. `GRID`. |
 | [js/levels.js](js/levels.js) | `LEVELS` (5 ručnih nivoa, `LevelBuilder`), `LevelRuntime` (spawner), endless generator. |
 | [js/ui.js](js/ui.js) | Sav DOM: ekrani, HUD, level-select/shop render, callbacks. |
 | [js/game.js](js/game.js) | **Entry modul:** state machine, game loop, kolizije, wiring. Sadrži `init()`. |
@@ -44,7 +44,7 @@ Sve se računa na **logičkoj skali** `1200×600`, `GROUND_Y=450`. `view` (u con
 Nivo = elementi na apsolutnim `x` pozicijama + tema/BPM/dužina. Runtime vodi `worldX` (raste za `speed`/frejm), spawnuje elemente kad uđu na ekran (`x = el.x - worldX`), uklanja one van ekrana. `progress = worldX/length`, `finished` na kraju. `getTheme()` daje glatke color-shift prelaze. `seek()` za practice respawn; `spawnPaused` za boss.
 
 ### Mehanike / kolizije
-`Spike` = instant smrt. `Block` = solidan (sletanje odozgo preko `resolveFloor()`, bočni sudar = smrt). `JumpPad` = auto-odskok. `JumpOrb` = skok u vazduhu uz njega (aktivira se u `doJump()`). `Coin` = sakupljanje. Hitbox-evi su „forgiving" (`getHitbox()`).
+`Spike` = instant smrt. `Block` = solidan (sletanje odozgo preko `resolveFloor()`, bočni sudar = smrt; **mora imati `solidTop=true`**). `JumpPad` = auto-odskok. `JumpOrb` = skok u vazduhu uz njega (aktivira se u `doJump()`). `Coin` = sakupljanje. `MovingPlatform`/`CrumblePlatform`/`Block` dele `solidTop` granu (sletanje vs bok). `MovingPlatform` sa `amp=0` = statični ledge (`LevelBuilder.ledge(w,y)`). `Laser` = vertikalni snop sa otvorom; helperi `laserJump`/`laserDuck`/`laserGap` biraju visinu otvora. `DuckBarrier`/`Shuriken` = promaši se čučnjem. `Pit` = pad u provaliju → smrt; **`player.fallingPit` „zaključava" pad** u `resolveFloor()` da rupa koja odscrolluje ne „spasi" igrača. Boss naizmenično baca `Spike` (skok) / `Shuriken` (čučanj) / `Laser` (poravnaj skok). Hitbox-evi su „forgiving" (`getHitbox()`).
 
 ### Vizuali
 Per-nivo neon teme (gradijent pozadine, grid pod, glow). **Beat clock** pulsira pozadinu/pod/glow uz BPM. Trag iza igrača, screen shake na smrt/pad. **FX toggle** (`✨`/`🌙` dugme, `ninjaFX`) gasi sve efekte (reduce-motion).
@@ -63,7 +63,7 @@ python3 -m http.server 8000   # pa otvori http://localhost:8000
 ```
 
 ### Service worker keš — VAŽNO
-`sw.js` je cache-first. **Pri izmeni bilo kog keširanog fajla povećaj `CACHE_NAME`** (trenutno `ninja-dash-v15`), inače igrači dobijaju staru verziju. Resursi su podeljeni na `CORE` (mora postojati, `addAll`) i `OPTIONAL` (audio/ikone, `allSettled` — nedostajući fajl ne ruši install).
+`sw.js` je cache-first. **Pri izmeni bilo kog keširanog fajla povećaj `CACHE_NAME`** (trenutno `ninja-dash-v20`), inače igrači dobijaju staru verziju. Resursi su podeljeni na `CORE` (mora postojati, `addAll`) i `OPTIONAL` (audio/ikone, `allSettled` — nedostajući fajl ne ruši install).
 
 ### Nedostajući asset-i
 Audio (`assets/level1-5.mp3`, `music.mp3`, `jump/gameover/coin/orb/pad/complete.mp3`) i `icon-192/512.png` **ne postoje u repo-u**. Kod gracefully radi bez njih (igra je tiha; beat clock ima free-run fallback). Korisnik treba da ih obezbedi.

@@ -8,7 +8,7 @@ import { load, save } from './storage.js';
 import * as audio from './audio.js';
 import { initInput, setHandlers } from './input.js';
 import { Player, SKINS } from './player.js';
-import { Particle, FlyingCoin, Boss, Spike, backgroundLayers } from './entities.js';
+import { Particle, FlyingCoin, Boss, Spike, Shuriken, Laser, backgroundLayers } from './entities.js';
 import { LEVELS, LevelRuntime } from './levels.js';
 import * as ui from './ui.js';
 
@@ -26,6 +26,7 @@ let nextBossScore = 800;
 let campaignBossDone = false; // bos već pobeđen u ovom pokušaju (kampanja)
 let bossLives = 0;            // bafer pogodaka tokom kampanjske boss borbe
 const BOSS_LIVES = 3;
+let bossAttackN = 0;          // brojač boss napada (ritam: skok/čučanj/poravnanje)
 
 let frameCount = 0;
 let floorScroll = 0;
@@ -254,6 +255,7 @@ function respawnFromPit() {
     player.isGrounded = true;
     player.jumpCount = 0;
     player.ground = null;
+    player.fallingPit = false;
     player.invuln = 90;
 }
 
@@ -327,7 +329,7 @@ function handleCollisions() {
         const eb = e.getHitbox && e.getHitbox();
         if (!eb || !overlap(hb, eb)) continue; // null hitbox (neaktivan laser / nestala crumble) ili nema preseka
 
-        if (e.type === 'spike' || e.type === 'saw' || e.type === 'duckbar') {
+        if (e.type === 'spike' || e.type === 'saw' || e.type === 'duckbar' || e.type === 'shuriken') {
             if (onHazardHit(e, i)) return;
         } else if (e.type === 'laser') {
             if (!e.inGap(hb)) { if (onHazardHit(null, i)) return; } // pogođen samo ako NISI ceo u otvoru
@@ -369,8 +371,11 @@ function resolveFloor() {
             if (pcx > e.x + 6 && pcx < e.x + e.width - 6) { overPit = true; break; }
         }
     }
+    // Zaključaj pad: čim noge upadnu u rupu, nastavi pad i ako provalija odscrolluje
+    // (inače bi se igrač "spasao" nazad na tlo pre nego stigne do praga smrti).
+    if (overPit && player.dy >= 0 && feet > GROUND_Y) player.fallingPit = true;
 
-    let floorY = overPit ? Infinity : GROUND_Y;
+    let floorY = (overPit || player.fallingPit) ? Infinity : GROUND_Y;
     let support = null;
 
     for (const e of runtime.entities) {
@@ -397,6 +402,9 @@ function resolveFloor() {
         player.ground = landed ? support : null;
         if (landed && support && support.type === 'crumble') support.trigger();
     }
+
+    // Sletanje na tlo/platformu poništava latch pada (pitMover most i dalje spašava).
+    if (player.isGrounded) player.fallingPit = false;
 }
 
 // ---------- Glavna logika frejma ----------
@@ -447,6 +455,7 @@ function updateBoss() {
 
 function startEndlessBoss() {
     boss = new Boss();
+    bossAttackN = 0;
     runtime.spawnPaused = true;
     ui.showBossHud(true);
     ui.setBossHp(100);
@@ -456,6 +465,7 @@ function startEndlessBoss() {
 function startCampaignBoss() {
     if (mode === 'PRACTICE') { campaignBossDone = true; return; } // practice je za vežbanje platforminga
     boss = new Boss();
+    bossAttackN = 0;
     if (runtime.bossConfig) boss.hp = boss.maxHp = runtime.bossConfig.hp;
     runtime.spawnPaused = true;
     runtime.frozen = true;
@@ -473,9 +483,14 @@ function startCampaignBoss() {
 // Zajednička petlja borbe (oba moda): kretanje, napadi, dodge-damage, HUD, pobeda.
 function runBossFight() {
     boss.update(runtime.speed, () => {
-        const s = new Spike(screenLogicalWidth());
-        s.fromBoss = true;
-        runtime.entities.push(s);
+        // Naizmenični napadi: šiljak (skok), šuriken (čučanj), laser sa otvorom (poravnaj visinu skokom).
+        const kind = ['spike', 'shuriken', 'spike', 'laser'][bossAttackN++ % 4];
+        let ent;
+        if (kind === 'shuriken') ent = new Shuriken(screenLogicalWidth());
+        else if (kind === 'laser') ent = new Laser(screenLogicalWidth(), { onFrames: 9999, offFrames: 0, gapY: GROUND_Y - 150, gapH: 190 });
+        else ent = new Spike(screenLogicalWidth());
+        ent.fromBoss = true;
+        runtime.entities.push(ent);
     });
     // HP pad: spike koji je prošao igrača (uspešno izbegnut)
     for (const e of runtime.entities) {

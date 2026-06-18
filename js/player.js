@@ -41,6 +41,7 @@ export class Player {
         this.invuln = 0; // frejmovi neranjivosti (endless mod)
         this.shield = false; // aktivni štit (upija jedan pogodak)
         this.ground = null;  // platforma na kojoj trenutno stoji (za jahanje pokretnih)
+        this.fallingPit = false; // zaključan pad u provaliju (commituje smrt i ako rupa odscrolluje)
         this.trail = [];
     }
 

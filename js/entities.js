@@ -55,6 +55,7 @@ export class Spike {
 export class Block {
     constructor(x, wCells = 1, hCells = 1) {
         this.type = 'block';
+        this.solidTop = true; // solidan: sletanje odozgo (resolveFloor), bočni sudar = smrt
         this.width = wCells * GRID;
         this.height = hCells * GRID;
         this.x = x;
@@ -268,7 +269,8 @@ export class Saw {
     get offscreen() { return this.x + this.width < 0; }
 }
 
-// --- MOVING PLATFORM: vertikalna sin-oscilacija; staje se odozgo (solidTop) ---
+// --- MOVING PLATFORM: vertikalna sin-oscilacija; staje se odozgo (solidTop).
+//     Sa amp=0 postaje STATIČNA lebdeća platforma (ledge) na zadatoj visini. ---
 export class MovingPlatform {
     constructor(x, wCells = 2, baseY = GROUND_Y - 120, amp = 70, period = 150) {
         this.type = 'mover';
@@ -298,12 +300,14 @@ export class MovingPlatform {
         ctx.strokeStyle = theme.accent;
         ctx.lineWidth = 3 * s;
         ctx.strokeRect(this.x * s, this.y * s, this.width * s, this.height * s);
-        // vertikalne strelice (indikacija kretanja)
-        ctx.fillStyle = theme.accent;
-        ctx.globalAlpha = 0.85;
-        const mx = (this.x + this.width / 2) * s, my = (this.y + this.height / 2) * s, a = 6 * s;
-        ctx.beginPath(); ctx.moveTo(mx, my - a * 1.6); ctx.lineTo(mx - a, my - a * 0.4); ctx.lineTo(mx + a, my - a * 0.4); ctx.closePath(); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(mx, my + a * 1.6); ctx.lineTo(mx - a, my + a * 0.4); ctx.lineTo(mx + a, my + a * 0.4); ctx.closePath(); ctx.fill();
+        // vertikalne strelice (indikacija kretanja) — samo za stvarno pokretne (amp>0); kod statičnog ledge-a (amp=0) se izostavljaju
+        if (this.amp !== 0) {
+            ctx.fillStyle = theme.accent;
+            ctx.globalAlpha = 0.85;
+            const mx = (this.x + this.width / 2) * s, my = (this.y + this.height / 2) * s, a = 6 * s;
+            ctx.beginPath(); ctx.moveTo(mx, my - a * 1.6); ctx.lineTo(mx - a, my - a * 0.4); ctx.lineTo(mx + a, my - a * 0.4); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(mx, my + a * 1.6); ctx.lineTo(mx - a, my + a * 0.4); ctx.lineTo(mx + a, my + a * 0.4); ctx.closePath(); ctx.fill();
+        }
         ctx.restore();
     }
     getHitbox() { return { x: this.x + 3, y: this.y, w: this.width - 6, h: this.height }; }
@@ -587,6 +591,50 @@ export class Particle {
         ctx.restore();
     }
     get dead() { return this.life <= 0; }
+}
+
+// --- SHURIKEN: leteća zvezda (boss projektil); leti ulevo na visini glave → izbegava se ČUČNJEM ---
+// Princip kao DuckBarrier: dno hitboxa (~GROUND_Y-28=422) je IZNAD temena čučećeg igrača (427.5),
+// pa čučanj prolazi ispod, a stojeći biva pogođen.
+export class Shuriken {
+    constructor(x) {
+        this.type = 'shuriken';
+        this.size = 44;
+        this.width = this.size;
+        this.x = x;
+        this.cy = GROUND_Y - 45;          // centar leta = visina glave stojećeg igrača
+        this.y = this.cy - this.size / 2;
+        this.angle = 0;
+    }
+    update(speed) { this.x -= speed; this.angle += 0.35; }
+    draw(theme, fxOn, beatPulse) {
+        const ctx = view.ctx, s = getScale();
+        const cx = (this.x + this.size / 2) * s, cy = this.cy * s;
+        const r = (this.size / 2) * s;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(this.angle);
+        glow(ctx, fxOn, theme.obstacle, 16, beatPulse);
+        ctx.fillStyle = theme.obstacle;
+        // četvorokraka zvezda (8 temena: vrh kraka / udubljenje)
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+            const rr = i % 2 === 0 ? r : r * 0.32;
+            const a = (i / 8) * Math.PI * 2;
+            const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        // središnja rupa + sjaj
+        ctx.fillStyle = theme.floor;
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.1, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+    getHitbox() { return { x: this.x + 6, y: GROUND_Y - 60, w: this.size - 12, h: 32 }; }
+    get offscreen() { return this.x + this.size < 0; }
 }
 
 // --- BOSS: leteći protivnik (zadržan iz originala, neon prepravka) ---
