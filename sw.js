@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ninja-dash-v20';
+const CACHE_NAME = 'ninja-dash-v21';
 
 // Obavezni resursi (moraju postojati) — keširaju se atomično.
 const CORE = [

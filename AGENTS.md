@@ -15,7 +15,7 @@ Smernice za AI agente koji rade na ovom projektu.
 
 | Fajl | Uloga |
 |------|-------|
-| [index.html](index.html) | DOM: canvas, HUD, ekrani (meni, level-select, complete, game-over, shop). Registruje SW. |
+| [index.html](index.html) | DOM: canvas, HUD, ekrani (meni, level-select, complete, game-over, shop, pauza). Registruje SW. |
 | [style.css](style.css) | Neon stilovi: gradijenti, glow, level-select grid, progress bar, oblici u shop-u. |
 | [js/config.js](js/config.js) | Konstante (`LOGICAL_WIDTH/HEIGHT`, `GROUND_Y`), `view`+`getScale()`, `STORAGE_KEYS`, `THEMES`, `lerpTheme`. |
 | [js/storage.js](js/storage.js) | localStorage wrapperi (`load`/`save`, JSON, `ninja`-prefiks). |
@@ -63,7 +63,7 @@ python3 -m http.server 8000   # pa otvori http://localhost:8000
 ```
 
 ### Service worker keš — VAŽNO
-`sw.js` je cache-first. **Pri izmeni bilo kog keširanog fajla povećaj `CACHE_NAME`** (trenutno `ninja-dash-v20`), inače igrači dobijaju staru verziju. Resursi su podeljeni na `CORE` (mora postojati, `addAll`) i `OPTIONAL` (audio/ikone, `allSettled` — nedostajući fajl ne ruši install).
+`sw.js` je cache-first. **Pri izmeni bilo kog keširanog fajla povećaj `CACHE_NAME`** (trenutno `ninja-dash-v21`), inače igrači dobijaju staru verziju. Resursi su podeljeni na `CORE` (mora postojati, `addAll`) i `OPTIONAL` (audio/ikone, `allSettled` — nedostajući fajl ne ruši install).
 
 ### Nedostajući asset-i
 Audio (`assets/level1-5.mp3`, `music.mp3`, `jump/gameover/coin/orb/pad/complete.mp3`) i `icon-192/512.png` **ne postoje u repo-u**. Kod gracefully radi bez njih (igra je tiha; beat clock ima free-run fallback). Korisnik treba da ih obezbedi.

@@ -3,13 +3,19 @@
 
 const el = id => document.getElementById(id);
 
-const SCREENS = ['menu-screen', 'level-select-screen', 'level-complete-screen', 'game-over-screen', 'shop-screen'];
+const SCREENS = ['menu-screen', 'level-select-screen', 'level-complete-screen', 'game-over-screen', 'shop-screen', 'pause-screen'];
 
 export function showScreen(id) {
     SCREENS.forEach(s => { el(s).style.display = (s === id) ? 'flex' : 'none'; });
 }
 export function hideAllScreens() {
     SCREENS.forEach(s => { el(s).style.display = 'none'; });
+}
+
+// Meni za pauzu; "Levels" se prikazuje samo u kampanji (u endless-u nema izbora nivoa).
+export function showPauseMenu(showLevels) {
+    el('pause-levels-btn').style.display = showLevels ? 'block' : 'none';
+    showScreen('pause-screen');
 }
 
 // Pomoćni: postavi klik handler (uklanja prethodni kloniranjem da se ne gomilaju).

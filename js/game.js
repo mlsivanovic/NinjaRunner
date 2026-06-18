@@ -108,11 +108,17 @@ function startEndless() {
     state = 'PLAYING';
 }
 
-function goMenu() {
+// Zaustavi tekuću igru i vrati u "mirno" stanje (deli ga goMenu i izlazak iz pauze u Levels).
+function stopGame() {
     state = 'MENU';
     runtime = null; boss = null; paused = false;
+    document.getElementById('pause-btn').innerText = '⏸️';
     audio.stopMusic();
     ui.showHUD(false);
+}
+
+function goMenu() {
+    stopGame();
     ui.showScreen('menu-screen');
 }
 
@@ -610,18 +616,6 @@ function shade(hex, factor) {
     return `rgb(${r},${g},${b})`;
 }
 
-function drawPaused() {
-    const ctx = view.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, view.w, view.h);
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${60 * getScale()}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.fillText('PAUSED', view.w / 2, view.h / 2);
-    ctx.restore();
-}
-
 function frame() {
     requestAnimationFrame(frame);
     const ctx = view.ctx;
@@ -653,8 +647,6 @@ function frame() {
     }
 
     ctx.restore();
-
-    if (paused && state === 'PLAYING') drawPaused();
 }
 
 // ---------- Input ----------
@@ -678,7 +670,8 @@ function togglePause() {
     if (state !== 'PLAYING') return;
     paused = !paused;
     document.getElementById('pause-btn').innerText = paused ? '▶️' : '⏸️';
-    if (paused) audio.pauseMusic(); else audio.resumeMusic();
+    if (paused) { audio.pauseMusic(); ui.showPauseMenu(mode !== 'ENDLESS'); }
+    else        { audio.resumeMusic(); ui.hideAllScreens(); }
 }
 
 function placeCheckpoint() {
@@ -732,8 +725,22 @@ function init() {
 
     // Shop
     ui.onClick('close-shop-btn', () => {
-        if (state === 'MENU') ui.showScreen('menu-screen'); else ui.hideAllScreens();
+        if (state === 'MENU') ui.showScreen('menu-screen');
+        else if (paused) ui.showScreen('pause-screen'); // shop otvoren iz pauze → nazad u pauzu
+        else ui.hideAllScreens();
     });
+
+    // Pauza meni
+    ui.onClick('pause-resume-btn', togglePause);
+    ui.onClick('pause-restart-btn', () => {
+        paused = false;
+        document.getElementById('pause-btn').innerText = '⏸️';
+        ui.hideAllScreens();
+        if (mode === 'ENDLESS') startEndless(); else restartLevel();
+    });
+    ui.onClick('pause-levels-btn', () => { stopGame(); openLevelSelect(); });
+    ui.onClick('pause-shop-btn', openShop);   // ostaje paused=true / state=PLAYING
+    ui.onClick('pause-menu-btn', goMenu);
 
     // Top kontrole
     ui.onClick('mute-btn', () => ui.setMuteIcon(audio.toggleMute()));
