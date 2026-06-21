@@ -71,7 +71,7 @@ function startLevel(level, practice) {
     particles = []; flyingCoins = []; boss = null;
     campaignBossDone = false; bossLives = 0;
     runCoins = 0; attempts = 1; checkpoints = [0];
-    audio.setMusic(level.music);
+    audio.setMusic(level.music, level.bpm);
     ui.hideAllScreens();
     ui.showHUD(true);
     ui.showProgress(true); ui.setProgress(0);
@@ -94,7 +94,7 @@ function startEndless() {
     player.reset();
     particles = []; flyingCoins = []; boss = null;
     runCoins = 0; lives = 3; score = 0; nextBossScore = 800;
-    audio.setMusic('assets/music.mp3');
+    audio.setMusic('assets/music.mp3', 135);
     ui.hideAllScreens();
     ui.showHUD(true);
     ui.showProgress(false);
@@ -154,6 +154,7 @@ function handleShopAction(index) {
             currentSkin = index;
             save(STORAGE_KEYS.currentSkin, currentSkin);
             player.setSkin(SKINS[index]);
+            audio.playSfx('shop');
         } else {
             return; // nedovoljno novčića
         }
@@ -406,7 +407,10 @@ function resolveFloor() {
     } else {
         const landed = player.resolveFloor(floorY);
         player.ground = landed ? support : null;
-        if (landed && support && support.type === 'crumble') support.trigger();
+        if (landed && support && support.type === 'crumble' && support.state === 'IDLE') {
+            support.trigger();
+            audio.playSfx('crumble');
+        }
     }
 
     // Sletanje na tlo/platformu poništava latch pada (pitMover most i dalje spašava).
@@ -435,6 +439,15 @@ function tick() {
     for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update();
         if (particles[i].dead) particles.splice(i, 1);
+    }
+
+    // Ambijentalni laser: zvuk na trenutak aktivacije (off→on), samo dok je na ekranu.
+    for (const e of runtime.entities) {
+        if (e.type === 'laser' && !e.fromBoss) {
+            const on = e.active;
+            if (on && !e._wasActive && e.x + e.width > 0 && e.x < screenLogicalWidth()) audio.playSfx('laser');
+            e._wasActive = on;
+        }
     }
 
     if (mode === 'ENDLESS') {
@@ -492,8 +505,8 @@ function runBossFight() {
         // Naizmenični napadi: šiljak (skok), šuriken (čučanj), laser sa otvorom (poravnaj visinu skokom).
         const kind = ['spike', 'shuriken', 'spike', 'laser'][bossAttackN++ % 4];
         let ent;
-        if (kind === 'shuriken') ent = new Shuriken(screenLogicalWidth());
-        else if (kind === 'laser') ent = new Laser(screenLogicalWidth(), { onFrames: 9999, offFrames: 0, gapY: GROUND_Y - 150, gapH: 190 });
+        if (kind === 'shuriken') { ent = new Shuriken(screenLogicalWidth()); audio.playSfx('shuriken'); }
+        else if (kind === 'laser') { ent = new Laser(screenLogicalWidth(), { onFrames: 9999, offFrames: 0, gapY: GROUND_Y - 150, gapH: 190 }); audio.playSfx('laser'); }
         else ent = new Spike(screenLogicalWidth());
         ent.fromBoss = true;
         runtime.entities.push(ent);

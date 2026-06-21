@@ -1,6 +1,8 @@
 // ui.js — upravljanje DOM ekranima (meni, level-select, complete, game-over, shop) i HUD-om.
 // game.js prosleđuje podatke i callback-ove; ovaj modul samo crta i sluša klikove.
 
+import * as audio from './audio.js';
+
 const el = id => document.getElementById(id);
 
 const SCREENS = ['menu-screen', 'level-select-screen', 'level-complete-screen', 'game-over-screen', 'shop-screen', 'pause-screen'];
@@ -22,7 +24,7 @@ export function showPauseMenu(showLevels) {
 export function onClick(id, fn) {
     const node = el(id);
     if (!node) return;
-    node.onclick = (e) => { fn(e); node.blur(); };
+    node.onclick = (e) => { audio.playSfx('click'); fn(e); node.blur(); };
 }
 
 // --- HUD ---

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ninja-dash-v21';
+const CACHE_NAME = 'ninja-dash-v22';
 
 // Obavezni resursi (moraju postojati) — keširaju se atomično.
 const CORE = [
@@ -17,22 +17,11 @@ const CORE = [
   './js/game.js'
 ];
 
-// Opcioni resursi (audio/ikone) — mogu nedostajati; keširamo pojedinačno bez pada install-a.
+// Opcioni resursi (ikone) — mogu nedostajati; keširamo pojedinačno bez pada install-a.
+// Napomena: zvuk je sada proceduralan (Web Audio), pa nema audio fajlova za keširanje.
 const OPTIONAL = [
   './icon-192.png',
-  './icon-512.png',
-  './assets/music.mp3',
-  './assets/jump.mp3',
-  './assets/gameover.mp3',
-  './assets/coin.mp3',
-  './assets/orb.mp3',
-  './assets/pad.mp3',
-  './assets/complete.mp3',
-  './assets/level1.mp3',
-  './assets/level2.mp3',
-  './assets/level3.mp3',
-  './assets/level4.mp3',
-  './assets/level5.mp3'
+  './icon-512.png'
 ];
 
 self.addEventListener('install', e => {
