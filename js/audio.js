@@ -13,6 +13,7 @@ let masterGain = null;   // glavni izlaz; mute = rampa na 0
 let musicGain = null;    // bus za muziku
 let sfxGain = null;      // bus za efekte
 let delaySend = null;    // ulaz u feedback-delay (synthwave "dreamy" rep)
+let pumpGain = null;     // sidechain "pump" bus za tonske slojeve (pad/bas/arp/lead)
 
 let perfStart = performance.now(); // slobodan sat za beat dok muzika ne svira
 
@@ -22,8 +23,12 @@ function buildGraph() {
     masterGain.connect(ctx.destination);
 
     musicGain = ctx.createGain();
-    musicGain.gain.value = 0.32;
+    musicGain.gain.value = MUSIC_GAIN;
     musicGain.connect(masterGain);
+
+    pumpGain = ctx.createGain(); // tonski slojevi prolaze ovde i "pumpaju" na svaki kick
+    pumpGain.gain.value = 1;
+    pumpGain.connect(musicGain);
 
     sfxGain = ctx.createGain();
     sfxGain.gain.value = 0.5;
@@ -223,6 +228,17 @@ let curBpm = 128;
 let musicActive = false;     // ima učitanu numeru (između setMusic i stopMusic)
 let musicPaused = false;
 let musicStartCtxTime = 0;   // ctx.currentTime kada je takt 0 krenuo (za beat puls)
+let tempoMul = 1;            // progresivno ubrzanje (1.0 = osnovni tempo nivoa)
+let bossMode = false;        // dramatičan boss aranžman + brži tempo
+let beatPhase = 0;           // akumulirana faza beat pulsa (radi i pri promeni tempa)
+let beatLastT = null;        // poslednji ctx.currentTime viđen u getBeatPulse
+
+const MUSIC_GAIN = 0.32, BOSS_MUSIC_GAIN = 0.42;
+const BOSS_TEMPO_MUL = 1.12; // boss je toliko brži od trenutnog (već ubrzanog) tempa
+const BOSS_PROG = [{ off: 0, type: 'min' }, { off: 8, type: 'maj' }, { off: 7, type: 'maj' }, { off: 0, type: 'min' }]; // i–bVI–V–i (napeto)
+
+// Efektivni tempo: osnovni × progresivno ubrzanje, a u boss modu dodatno ubrzano.
+function effectiveBpm() { return curBpm * (bossMode ? tempoMul * BOSS_TEMPO_MUL : tempoMul); }
 
 function resetSequencer() {
     absStep = 0;
@@ -240,7 +256,7 @@ function stopScheduler() {
 
 function scheduler() {
     if (!ctx || !curTheme || musicPaused) return;
-    const stepDur = (60 / curBpm) / 4; // 16-tina
+    const stepDur = (60 / effectiveBpm()) / 4; // 16-tina (uklj. ubrzanje/boss)
     while (nextNoteTime < ctx.currentTime + 0.12) {
         scheduleStep(absStep, nextNoteTime, stepDur);
         absStep++;
@@ -248,32 +264,96 @@ function scheduler() {
     }
 }
 
+// Glavni rif (lead) — sinkopiran, sa pauzama; brojevi su stepenici mol-pentatonike,
+// null = pauza. 32 koraka (2 takta); svira u refrenu radi pamtljivosti/uzbuđenja.
+const PENTA = [0, 3, 5, 7, 10];
+const scaleNote = d => PENTA[((d % 5) + 5) % 5] + 12 * Math.floor(d / 5);
+const LEAD = [
+    0, null, 2, 3, null, 2, null, 4,    3, null, null, 2, null, 0, 2, null,
+    4, null, 3, 4, null, 5, null, 4,    3, null, 2, null, 0, null, 2, null
+];
+
+// Riser pred refren: rastući šum + ton (napetost, "diže se").
+function riser(when, dur) {
+    noise({ dur, gain: 0.06, filter: 'bandpass', freq: 1200, q: 0.5, dest: musicGain, when });
+    voice({ freq: 200, slideTo: 1600, type: 'sawtooth', dur, attack: 0.05, release: 0.05, gain: 0.04, filterFreq: 4000, dest: musicGain, when });
+}
+
+// Sidechain "pump": na svaki kick utišaj tonski bus pa ga brzo vrati (groove/energija).
+function pump(when, beatDur) {
+    if (!pumpGain) return;
+    const g = pumpGain.gain;
+    g.cancelScheduledValues(when);
+    g.setValueAtTime(0.5, when);
+    g.linearRampToValueAtTime(1, when + Math.min(0.3, beatDur * 0.95));
+}
+
 function scheduleStep(abs, when, stepDur) {
     const T = curTheme;
+    const boss = bossMode;
+    const prog = boss ? BOSS_PROG : T.prog;
     const stepInBar = abs % 16;
-    const chord = T.prog[Math.floor(abs / 16) % T.prog.length];
+    const bar = Math.floor(abs / 16);
+    const chord = prog[bar % prog.length];
     const root = T.key + chord.off;
     const iv = chord.type === 'min' ? [0, 3, 7] : [0, 4, 7];
     const beatDur = stepDur * 4;
     const barDur = stepDur * 16;
 
-    // PAD — na početku takta, spor attack, dug rep
+    // Struktura: 8-taktni ciklus → strofa (0–3) pa refren (4–7, jači + lead).
+    const cycleBar = bar % 8;
+    const chorus = boss || cycleBar >= 4;   // boss ide stalno na "refren" energiji
+    const build = cycleBar / 7;             // 0..1 kroz ciklus (otvaranje filtera)
+    const lastVerseBar = cycleBar === 3;    // pred refren → riser
+    const lastBar = cycleBar === 7;         // pred loop → fill
+    const arpCut = (boss ? 1700 : 800) + (chorus ? 2400 : 1300) * (0.4 + 0.6 * build);
+
+    // ---------- PAD ----------
     if (stepInBar === 0) {
-        iv.forEach(s => voice({ freq: mtof(root + 12 + s), type: 'sawtooth', unison: 2, spread: 8, dur: barDur * 0.98, attack: 0.5, release: 0.6, gain: 0.035, filterFreq: 1600, dest: musicGain, sendDelay: 0.12, when }));
+        const pg = chorus ? 0.045 : 0.03;
+        iv.forEach(s => voice({ freq: mtof(root + 12 + s), type: 'sawtooth', unison: 2, spread: chorus ? 11 : 7, dur: barDur * 0.98, attack: chorus ? 0.15 : 0.5, release: 0.6, gain: pg, filterFreq: 1400 + 1000 * build, dest: pumpGain, sendDelay: 0.12, when }));
+        if (boss) voice({ freq: mtof(root - 12), type: 'sawtooth', unison: 2, spread: 8, dur: barDur * 0.98, attack: 0.15, release: 0.5, gain: 0.06, filterFreq: 480, dest: pumpGain, when }); // boss dron
     }
-    // BAS — na svaki otkucaj
+
+    // ---------- BAS (na otkucaj) + outrun offbeat pluck u refrenu ----------
     if (stepInBar % 4 === 0) {
-        voice({ freq: mtof(root), type: 'sawtooth', unison: 2, spread: 6, dur: beatDur * 0.92, attack: 0.01, release: 0.08, gain: 0.14, filterFreq: 700, q: 1, dest: musicGain, when });
+        voice({ freq: mtof(root), type: 'sawtooth', unison: 2, spread: 6, dur: beatDur * 0.5, attack: 0.005, release: 0.06, gain: 0.16, filterFreq: 850, q: 1, dest: pumpGain, when });
     }
-    // ARP — osmine kroz delay
-    if (stepInBar % 2 === 0) {
-        const n = root + 24 + iv[(stepInBar / 2) % 3];
-        voice({ freq: mtof(n), type: 'triangle', dur: stepDur * 1.6, release: 0.12, gain: 0.05, dest: musicGain, sendDelay: 0.3, when });
+    if (chorus && stepInBar % 2 === 1) {
+        voice({ freq: mtof(root + 12), type: 'sawtooth', dur: stepDur * 0.9, attack: 0.004, release: 0.05, gain: 0.09, filterFreq: 1300, dest: pumpGain, when });
     }
-    // DRUMS — mek kick na 1&3, hat na 2&4 + tihi off-beat hatovi
-    if (stepInBar === 0 || stepInBar === 8) kick(when);
-    if (stepInBar === 4 || stepInBar === 12) hat(when, 0.05);
-    else if (stepInBar % 4 === 2) hat(when, 0.02);
+
+    // ---------- ARP (strofa: osmine/triangle; refren: 16-tine/saw, svetliji) ----------
+    const arpEvery = chorus ? 1 : 2;
+    if (stepInBar % arpEvery === 0) {
+        const ai = Math.floor(stepInBar / arpEvery) % 3;
+        const oct = stepInBar % 8 >= 4 ? 12 : 0;
+        voice({ freq: mtof(root + 24 + iv[ai] + oct), type: chorus ? 'sawtooth' : 'triangle', dur: stepDur * (chorus ? 1.0 : 1.6), release: 0.1, gain: chorus ? 0.045 : 0.05, filterFreq: arpCut, dest: pumpGain, sendDelay: 0.28, when });
+    }
+
+    // ---------- LEAD (pamtljiv rif u refrenu; ne u bossu da ne bije sa V akordom) ----------
+    if (chorus && !boss) {
+        const d = LEAD[abs % 32];
+        if (d != null) {
+            const f = mtof(T.key + 24 + scaleNote(d));
+            voice({ freq: f, type: 'square', dur: stepDur * 2.2, attack: 0.005, release: 0.18, gain: 0.07, filterFreq: 2600 + 1400 * build, q: 1, dest: pumpGain, sendDelay: 0.33, when });
+            voice({ freq: f * 2, type: 'triangle', dur: stepDur * 1.4, release: 0.12, gain: 0.018, dest: pumpGain, sendDelay: 0.3, when }); // tanak oktavni sjaj
+        }
+    }
+
+    // ---------- DRUMS ----------
+    const fourFloor = boss || chorus;
+    if (fourFloor ? stepInBar % 4 === 0 : (stepInBar === 0 || stepInBar === 8)) { kick(when); pump(when, beatDur); }
+    if (stepInBar === 4 || stepInBar === 12) {
+        noise({ dur: 0.14, gain: 0.12, filter: 'highpass', freq: 1700, q: 0.7, dest: musicGain, when }); // snare/backbeat
+        if (chorus) noise({ dur: 0.07, gain: 0.07, filter: 'bandpass', freq: 1600, q: 0.6, dest: musicGain, when }); // clap sloj
+    }
+    if (chorus) hat(when, stepInBar % 2 === 1 ? 0.03 : 0.016);    // 16-tine = drive
+    else if (stepInBar % 2 === 1) hat(when, 0.025);               // strofa: offbeat 8-tine
+
+    // ---------- RISER / FILL ----------
+    if (lastVerseBar && stepInBar === 8) riser(when, barDur / 2);
+    if (lastBar && stepInBar >= 12 && stepInBar % 2 === 0) noise({ dur: 0.07, gain: 0.1, filter: 'highpass', freq: 1700, q: 0.7, dest: musicGain, when }); // snare fill pred loop
 }
 
 // ---------- Javni API (isti potpis kao ranije) ----------
@@ -299,6 +379,9 @@ export function setMusic(src, bpm) {
     curBpm = bpm || TEMPO[key] || 128;
     musicActive = true;
     musicPaused = false;
+    tempoMul = 1;
+    bossMode = false;
+    if (musicGain) musicGain.gain.value = MUSIC_GAIN;
     stopScheduler();
     resetSequencer();
     startScheduler();
@@ -307,6 +390,9 @@ export function setMusic(src, bpm) {
 export function restartMusic() {
     if (!musicActive || !ctx) return;
     musicPaused = false;
+    tempoMul = 1;
+    bossMode = false;
+    if (musicGain) musicGain.gain.value = MUSIC_GAIN;
     resetSequencer();
     startScheduler();
 }
@@ -329,17 +415,47 @@ export function resumeMusic() {
 export function stopMusic() {
     musicActive = false;
     musicPaused = false;
+    tempoMul = 1;
+    bossMode = false;
+    if (musicGain) musicGain.gain.value = MUSIC_GAIN;
     stopScheduler();
 }
 
+// Progresivno ubrzanje muzike kako nivo napreduje (1.0 = osnovni tempo nivoa).
+export function setTempo(mul) {
+    tempoMul = Math.max(0.5, Math.min(2, mul || 1));
+}
+
+// Uključi/isključi dramatičan boss aranžman (napeta progresija, brže, glasnije).
+export function setBossMode(on) {
+    on = !!on;
+    if (bossMode === on) return;
+    bossMode = on;
+    if (on) absStep = 0; // čist dramatičan ulaz od početka takta
+    if (musicGain && ctx) {
+        const t = ctx.currentTime;
+        musicGain.gain.cancelScheduledValues(t);
+        musicGain.gain.setValueAtTime(musicGain.gain.value, t);
+        musicGain.gain.linearRampToValueAtTime(on ? BOSS_MUSIC_GAIN : MUSIC_GAIN, t + 0.3);
+    }
+}
+
 // Beat pulse: 0..1 koji skoči na otkucaj pa opada (za pulsiranje vizuala).
-// Koristi ctx sat dok muzika svira, inače slobodan performance.now() sat.
+// Akumulira fazu po efektivnom tempu — ostaje sinhron i pri ubrzavanju/boss modu.
 export function getBeatPulse(bpm) {
+    if (ctx && musicActive && !musicPaused) {
+        const now = ctx.currentTime;
+        let dt = beatLastT == null ? 0 : now - beatLastT;
+        if (dt < 0 || dt > 0.25) dt = 0; // re-anchor posle pauze/skoka
+        beatLastT = now;
+        beatPhase = (beatPhase + dt * (effectiveBpm() / 60)) % 1;
+        return Math.pow(1 - beatPhase, 2.2);
+    }
+    // Fallback: slobodan sat dok muzika ne svira (meni vizuali)
+    beatLastT = null;
     if (!bpm) return 0;
     const beatLen = 60 / bpm;
-    let t;
-    if (ctx && musicActive && !musicPaused) t = ctx.currentTime - musicStartCtxTime;
-    else t = (performance.now() - perfStart) / 1000;
-    const phase = ((t % beatLen) + beatLen) % beatLen / beatLen;
+    const t = (performance.now() - perfStart) / 1000;
+    const phase = (((t % beatLen) + beatLen) % beatLen) / beatLen;
     return Math.pow(1 - phase, 2.2);
 }

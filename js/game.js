@@ -453,9 +453,10 @@ function tick() {
     if (mode === 'ENDLESS') {
         score = Math.floor(runtime.worldX / 40);
         ui.setScore(score);
+        audio.setTempo(1 + 0.15 * Math.min(1, score / 2000));
         updateBoss();
     } else {
-        if (!boss) ui.setProgress(runtime.progress);
+        if (!boss) { ui.setProgress(runtime.progress); audio.setTempo(1 + 0.15 * runtime.progress); }
         if (mode === 'PRACTICE' && player.isGrounded &&
             runtime.worldX - checkpoints[checkpoints.length - 1] > 1800) {
             checkpoints.push(runtime.worldX);
@@ -478,6 +479,7 @@ function startEndlessBoss() {
     runtime.spawnPaused = true;
     ui.showBossHud(true);
     ui.setBossHp(100);
+    audio.setBossMode(true);
 }
 
 // Boss na kraju kampanjskog nivoa: skalirani HP, zamrznuta arena, bafer srca.
@@ -497,6 +499,7 @@ function startCampaignBoss() {
     ui.showLives(true);
     ui.setLives(bossLives); // srca = preostali pogoci
     audio.playSfx('orb');
+    audio.setBossMode(true);
 }
 
 // Zajednička petlja borbe (oba moda): kretanje, napadi, dodge-damage, HUD, pobeda.
@@ -525,6 +528,7 @@ function runBossFight() {
 
 // Pobeda nad bosom — zajednička eksplozija + nagrade/tranzicija po modu.
 function defeatBoss() {
+    audio.setBossMode(false);
     spawnParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, '#ffd000', 80);
     shake(14);
     ui.showBossHud(false);
