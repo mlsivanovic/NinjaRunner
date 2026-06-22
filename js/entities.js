@@ -51,6 +51,46 @@ export class Spike {
     get offscreen() { return this.x + this.width < 0; }
 }
 
+// --- CEILING SPIKE: trougao usidren na plafonu (vrh gleda nadole) — kazna kad se skoči previše ---
+export class CeilingSpike {
+    constructor(x) {
+        this.type = 'ceilspike';
+        this.width = 45;
+        this.height = 52;
+        this.x = x;
+        this.y = 0; // visi sa vrha ekrana
+    }
+    update(speed) { this.x -= speed; }
+    draw(theme, fxOn, beatPulse) {
+        const ctx = view.ctx, s = getScale();
+        ctx.save();
+        glow(ctx, fxOn, theme.obstacle, 14, beatPulse);
+        ctx.fillStyle = theme.obstacle;
+        // baza gore (y=0), vrh dole
+        ctx.beginPath();
+        ctx.moveTo(this.x * s, this.y * s);
+        ctx.lineTo((this.x + this.width) * s, this.y * s);
+        ctx.lineTo((this.x + this.width / 2) * s, (this.y + this.height) * s);
+        ctx.closePath();
+        ctx.fill();
+        // svetla srž
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.moveTo((this.x + this.width * 0.38) * s, this.y * s);
+        ctx.lineTo((this.x + this.width * 0.62) * s, this.y * s);
+        ctx.lineTo((this.x + this.width / 2) * s, (this.y + this.height * 0.75) * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+    // Uži hitbox oko donje (opasne) polovine vrha.
+    getHitbox() {
+        return { x: this.x + this.width * 0.25, y: this.y,
+                 w: this.width * 0.5, h: this.height * 0.65 };
+    }
+    get offscreen() { return this.x + this.width < 0; }
+}
+
 // --- BLOCK: solidna platforma. Sletanje odozgo, bočni sudar = smrt ---
 export class Block {
     constructor(x, wCells = 1, hCells = 1) {
@@ -533,6 +573,73 @@ export class ExtraLife {
         ctx.restore();
     }
     getHitbox() { return { x: this.x - 6, y: this.y - 6, w: this.width + 12, h: this.height + 12 }; }
+    get offscreen() { return this.x + this.width < 0; }
+}
+
+// --- TELEPORT (ULAZ): svetleći portal; dodir prebaci igrača napred do izlaza (logika u game.js) ---
+export class Teleport {
+    constructor(x, exitWorldX) {
+        this.type = 'teleport';
+        this.width = 54;
+        this.height = 120;
+        this.x = x;
+        this.y = GROUND_Y - this.height; // stoji na tlu
+        this.exitWorldX = exitWorldX;    // apsolutni svet-x povezanog izlaza
+        this.spin = Math.random() * Math.PI * 2;
+        this._color = '#00e5ff';         // ulaz: cyan
+    }
+    update(speed) { this.x -= speed; this.spin += 0.12; }
+    draw(theme, fxOn, beatPulse) {
+        const ctx = view.ctx, s = getScale();
+        const cx = (this.x + this.width / 2) * s;
+        const cy = (this.y + this.height / 2) * s;
+        const rx = (this.width / 2) * s, ry = (this.height / 2) * s;
+        ctx.save();
+        glow(ctx, fxOn, this._color, 18, beatPulse);
+        // spoljni prsten (eliptičan portal)
+        ctx.strokeStyle = this._color;
+        ctx.lineWidth = 5 * s;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // unutrašnji vrtlog
+        ctx.globalAlpha = 0.5 + Math.sin(this.spin * 2) * 0.2;
+        ctx.fillStyle = this._color;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx * 0.62, ry * 0.62, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 2 * s;
+        for (let i = 0; i < 3; i++) {
+            const a = this.spin + i * (Math.PI * 2 / 3);
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, rx * 0.4, ry * 0.4, a, 0, Math.PI * 1.1);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+    getHitbox() { return { x: this.x + 8, y: this.y, w: this.width - 16, h: this.height }; }
+    get offscreen() { return this.x + this.width < 0; }
+}
+
+// --- TELEPORT (IZLAZ): samo dekorativni portal (kontrastna boja, bez kolizije) ---
+export class TeleportExit {
+    constructor(x) {
+        this.type = 'teleportExit';
+        this.width = 54;
+        this.height = 120;
+        this.x = x;
+        this.y = GROUND_Y - this.height;
+        this.spin = Math.random() * Math.PI * 2;
+        this._color = '#b14dff'; // izlaz: ljubičasta
+    }
+    update(speed) { this.x -= speed; this.spin -= 0.12; }
+    draw(theme, fxOn, beatPulse) {
+        // isti vizual kao ulaz, druga boja/smer — reuse crtanja preko Teleport.prototype
+        Teleport.prototype.draw.call(this, theme, fxOn, beatPulse);
+    }
+    getHitbox() { return null; } // bez kolizije
     get offscreen() { return this.x + this.width < 0; }
 }
 

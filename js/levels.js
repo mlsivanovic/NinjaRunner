@@ -1,8 +1,9 @@
 // levels.js — ručno dizajnirani nivoi, runtime spawner (vođen pozicijom) i endless generator.
 
 import { THEMES, DEFAULT_THEME, lerpTheme, GROUND_Y, screenLogicalWidth } from './config.js';
-import { Spike, Block, JumpPad, JumpOrb, Coin,
-         DuckBarrier, Saw, MovingPlatform, Laser, CrumblePlatform, Pit, Shield, ExtraLife, GRID } from './entities.js';
+import { Spike, CeilingSpike, Block, JumpPad, JumpOrb, Coin,
+         DuckBarrier, Saw, MovingPlatform, Laser, CrumblePlatform, Pit, Shield, ExtraLife,
+         Teleport, TeleportExit, GRID } from './entities.js';
 
 // --- Builder: kompaktno "ručno" slaganje sekvenci uz pomeranje kursora po x-osi ---
 class LevelBuilder {
@@ -45,6 +46,15 @@ class LevelBuilder {
     }
     shield(y) { this.els.push({ type: 'shield', x: this.x, y }); this.x += 40; return this; }
     life(y) { this.els.push({ type: 'life', x: this.x, y }); this.x += 36; return this; }
+    // Plafonski šiljci (kazna za prevelik skok) — usidreni na vrhu.
+    ceil(n = 1) { for (let i = 0; i < n; i++) { this.els.push({ type: 'ceilspike', x: this.x }); this.x += 45; } return this; }
+    // Teleport: ulaz na trenutnoj poziciji, izlaz `dist` napred (gauntlet između se preskače portalom).
+    teleport(dist = 600) {
+        this.els.push({ type: 'teleport', x: this.x, dist });
+        this.els.push({ type: 'teleportExit', x: this.x + dist });
+        this.x += 50;
+        return this;
+    }
     build(meta) {
         return { ...meta, length: this.x + 900, elements: this.els, zones: this.zones };
     }
@@ -74,6 +84,21 @@ const L1 = new LevelBuilder()
     .gap(340).spike(2)
     .gap(360).pit(3)
     .gap(360).spike(2)
+    // --- Produžetak: uvod plafonskih šiljaka i prvi teleport ---
+    .gap(340).pad().ceil(2)                               // odskok, ali pazi na plafon iznad
+    .gap(320).coinArc(3)
+    .gap(340).ledge(2, GROUND_Y - 150).gap(55).shield(GROUND_Y - 210)
+    .gap(320).block(1, 1).gap(80).spike(2)
+    .gap(340).teleport(540)                               // portal preskače gauntlet ispod
+        .gap(70).pit(2).gap(110).saw().gap(120).spike(2)
+    .gap(360).coinArc(4)
+    .gap(340).duckbar()
+    .gap(340).ledge(2, GROUND_Y - 160).gap(60).coin(GROUND_Y - 220).gap(80).life(GROUND_Y - 230)  // prvi život (rezerva)
+    .gap(320).spike(2)
+    .gap(340).laserGap({ onFrames: 55, offFrames: 85 })
+    .gap(320).orb(GROUND_Y - 200).ceil(2)
+    .gap(340).pit(2)
+    .gap(340).spike(2)
     .build({ id: 'l1', name: 'Neon Dojo', theme: 'cyanPurple', speed: 4.5, bpm: 128, music: 'assets/level1.mp3', boss: { hp: 12 } });
 
 // --- LEVEL 2: Sunset Sprint — ledge+blok kombinacije, laser na čučanj, prve šire provalije ---
@@ -103,6 +128,20 @@ const L2 = new LevelBuilder()
     .gap(340).spike(3)
     .gap(360).pit(3)
     .gap(360).spike(2)
+    // --- Produžetak: čučanj-gauntlet, teleport, plafonski šiljci ---
+    .gap(320).pad().ceil(2).gap(60).coin(GROUND_Y - 300)
+    .gap(320).ledge(2, GROUND_Y - 150).gap(55).shield(GROUND_Y - 210)
+    .gap(320).laserDuck({ onFrames: 65, offFrames: 60 }).gap(240).duckbar()
+    .gap(340).teleport(560)
+        .gap(70).pit(3).gap(120).saw(GROUND_Y - 150).gap(120).spike(3)
+    .gap(340).mover(2, GROUND_Y - 130, 70).gap(160).coinArc(3)
+    .gap(320).crumble(2, 1).gap(150).life(GROUND_Y - 120)
+    .gap(320).block(1, 2).gap(70).spike(2)
+    .gap(320).orb(GROUND_Y - 210).ceil(3)
+    .gap(340).ledge(2, GROUND_Y - 150).gap(55).ledge(2, GROUND_Y - 230).gap(60).coinArc(4)
+    .gap(320).spike(3)
+    .gap(340).pit(3)
+    .gap(340).spike(2)
     .build({ id: 'l2', name: 'Sunset Sprint', theme: 'cyanPurple', speed: 5, bpm: 132, music: 'assets/level2.mp3', boss: { hp: 16 } });
 
 // --- LEVEL 3: Toxic Temple — vertikalno platformisanje, laser preskok+otvor, više provalija, vazdušne testere ---
@@ -135,6 +174,23 @@ const L3 = new LevelBuilder()
     .gap(300).spike(3)
     .gap(340).pit(3)
     .gap(340).spike(3)
+    // --- Produžetak: dva teleporta, vertikalne stepenice, plafonski šiljci ---
+    .gap(320).pad().ceil(3).gap(70).coinArc(3)
+    .gap(300).teleport(520)
+        .gap(70).pit(3).gap(110).saw().gap(110).spike(3)
+    .gap(320).ledge(2, GROUND_Y - 150).gap(55).ledge(2, GROUND_Y - 240).gap(55).shield(GROUND_Y - 300)
+    .gap(300).laserJump({ onFrames: 60, offFrames: 70 })
+    .gap(300).saw(GROUND_Y - 150).gap(240).saw()
+    .gap(320).mover(2, GROUND_Y - 140, 80).gap(160).life(GROUND_Y - 230)
+    .gap(300).spike(3)
+    .gap(300).orb(GROUND_Y - 220).ceil(3)
+    .gap(320).teleport(560)
+        .gap(70).pitMover(5).gap(120).spike(3)
+    .gap(320).crumble(2, 1).gap(140).coinArc(4)
+    .gap(300).block(1, 2).gap(60).spike(3)
+    .gap(320).laserDuck({ onFrames: 70, offFrames: 55 })
+    .gap(300).pit(4)
+    .gap(320).spike(3)
     .build({ id: 'l3', name: 'Toxic Temple', theme: 'toxic', speed: 5.4, bpm: 140, music: 'assets/level3.mp3', boss: { hp: 20 } });
 
 // --- LEVEL 4: Deep Dive — gusto; laser parovi (čučanj→preskok), moveri/odskoci preko provalija ---
@@ -165,6 +221,22 @@ const L4 = new LevelBuilder()
     .gap(300).spike(4)
     .gap(320).pit(3)
     .gap(320).spike(3)
+    // --- Produžetak: laser+plafon gauntlet, dva teleporta, nagrade na visini ---
+    .gap(300).pad().ceil(3).gap(60).orb(GROUND_Y - 270).ceil(2)
+    .gap(300).teleport(540)
+        .gap(70).pit(4).gap(110).saw(GROUND_Y - 150).gap(110).spike(4)
+    .gap(300).ledge(2, GROUND_Y - 160).gap(50).ledge(2, GROUND_Y - 250).gap(55).shield(GROUND_Y - 310)
+    .gap(300).laserDuck({ onFrames: 70, offFrames: 50 }).gap(250).laserJump({ onFrames: 60, offFrames: 65 })
+    .gap(300).mover(2, GROUND_Y - 140, 85).gap(150).life(GROUND_Y - 250)
+    .gap(280).spike(4)
+    .gap(300).crumble(2, 1).gap(120).crumble(2, 1).gap(140).coinArc(4)
+    .gap(300).teleport(580)
+        .gap(70).pitMover(6).gap(120).saw().gap(110).spike(4)
+    .gap(300).block(2, 2).gap(60).spike(3)
+    .gap(300).laserGap({ onFrames: 70, offFrames: 50 })
+    .gap(300).orb(GROUND_Y - 230).ceil(3)
+    .gap(300).pit(4)
+    .gap(300).spike(4)
     .build({ id: 'l4', name: 'Deep Dive', theme: 'deepBlue', speed: 6, bpm: 145, music: 'assets/level4.mp3', boss: { hp: 26 } });
 
 // --- LEVEL 5: Inferno Finale — najteži; laserski gauntlet, najšire provalije, visoke stepenice, sve odjednom ---
@@ -199,6 +271,22 @@ const L5 = new LevelBuilder()
     .gap(280).shield(GROUND_Y - 120)
     .gap(260).spike(4)
     .gap(320).spike(4)
+    // --- Produžetak: finalni gauntlet, dva teleporta, plafonski šiljci svuda ---
+    .gap(280).pad().ceil(4).gap(60).orb(GROUND_Y - 280).ceil(3)
+    .gap(280).teleport(560)
+        .gap(60).pit(5).gap(100).saw(GROUND_Y - 150).gap(100).spike(4)
+    .gap(280).ledge(2, GROUND_Y - 160).gap(50).ledge(2, GROUND_Y - 250).gap(50).shield(GROUND_Y - 320)
+    .gap(280).laserDuck({ onFrames: 80, offFrames: 45 }).gap(230).laserJump({ onFrames: 70, offFrames: 50 }).gap(230).laserGap({ onFrames: 75, offFrames: 45 })
+    .gap(280).mover(2, GROUND_Y - 140, 90).gap(140).mover(2, GROUND_Y - 220, 75).gap(150).life(GROUND_Y - 290)
+    .gap(260).spike(4)
+    .gap(280).crumble(2, 1).gap(110).crumble(2, 1).gap(130).coinArc(4)
+    .gap(280).teleport(600)
+        .gap(60).pitMover(6).gap(110).saw().gap(100).duckbar().gap(120).spike(4)
+    .gap(280).block(2, 2).gap(55).spike(4)
+    .gap(280).orb(GROUND_Y - 250).ceil(4)
+    .gap(280).laserGap({ onFrames: 75, offFrames: 45, offset: 30 })
+    .gap(280).pit(5)
+    .gap(280).spike(4)
     .build({ id: 'l5', name: 'Inferno Finale', theme: 'inferno', speed: 6.6, bpm: 150, music: 'assets/level5.mp3', boss: { hp: 32 } });
 
 export const LEVELS = [L1, L2, L3, L4, L5];
@@ -210,6 +298,7 @@ function makeEntity(el, worldX) {
     const sx = el.x - worldX;
     switch (el.type) {
         case 'spike': return new Spike(sx);
+        case 'ceilspike': return new CeilingSpike(sx);
         case 'block': return new Block(sx, el.w || 1, el.h || 1);
         case 'pad': return new JumpPad(sx);
         case 'orb': return new JumpOrb(sx, el.y);
@@ -222,6 +311,8 @@ function makeEntity(el, worldX) {
         case 'pit': return new Pit(sx, el.w || 3);
         case 'shield': return new Shield(sx, el.y);
         case 'life': return new ExtraLife(sx, el.y);
+        case 'teleport': return new Teleport(sx, el.x + el.dist);
+        case 'teleportExit': return new TeleportExit(sx);
         default: return null;
     }
 }
@@ -328,6 +419,7 @@ export class LevelRuntime {
             () => { this.elements.push({ type: 'duckbar', x }); this.elements.push({ type: 'spike', x: x + 230 }); },
             () => { this.elements.push({ type: 'crumble', x, w: 2, h: 1 }); this.elements.push({ type: 'coin', x: x + 50, y: GROUND_Y - 80 }); },
             () => { this.elements.push({ type: 'pit', x, w: 2 }); },
+            () => { this.elements.push({ type: 'pad', x }); this.elements.push({ type: 'ceilspike', x: x - 10 }); this.elements.push({ type: 'ceilspike', x: x + 35 }); }, // odskok ispod plafonskih šiljaka
             () => { this.elements.push({ type: 'laser', x, opts: { gapY: GROUND_Y - 17, gapH: 36, onFrames: 70, offFrames: 60 } }); } // laser na čučanj
         ];
         // Veoma teški — samo na većoj težini.
@@ -336,6 +428,7 @@ export class LevelRuntime {
             () => { this.elements.push({ type: 'saw', x }); this.elements.push({ type: 'saw', x: x + 120, y: GROUND_Y - 150 }); },
             () => { this.elements.push({ type: 'pit', x, w: 3 }); },
             () => { this.elements.push({ type: 'pit', x, w: 4 }); this.elements.push({ type: 'mover', x: x + 20, w: 2, baseY: GROUND_Y - 80, amp: 45 }); },
+            () => { this.elements.push({ type: 'orb', x, y: GROUND_Y - 210 }); for (let i = 0; i < 3; i++) this.elements.push({ type: 'ceilspike', x: x - 30 + i * 45 }); }, // orb ispod plafonskih šiljaka
             () => { this.elements.push({ type: 'laser', x, opts: { gapY: GROUND_Y - 255, gapH: 390, onFrames: 60, offFrames: 70 } }); } // laser preskok
         ];
 

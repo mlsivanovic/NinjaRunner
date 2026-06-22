@@ -22,7 +22,7 @@ Smernice za AI agente koji rade na ovom projektu.
 | [js/audio.js](js/audio.js) | SFX/muzika (otporno na nedostajuće fajlove) + **beat clock** (`getBeatPulse(bpm)`). |
 | [js/input.js](js/input.js) | Tastatura + touch → akcije; `setHandlers()` registruje callback-ove. |
 | [js/player.js](js/player.js) | `Player` klasa: skok/duck, oblici, neon trag, glow, neranjivost. `SKINS[]`. |
-| [js/entities.js](js/entities.js) | `Spike`, `Block`, `JumpPad`, `JumpOrb`, `Coin`, `DuckBarrier`, `Saw`, `MovingPlatform` (amp=0 → statični „ledge"), `Laser` (otvor po visini), `CrumblePlatform`, `Pit`, `Shield`, `ExtraLife`, `FlyingCoin`, `Particle`, `Shuriken` (boss, čučanj), `Boss`, `BackgroundLayer`. `GRID`. |
+| [js/entities.js](js/entities.js) | `Spike`, `CeilingSpike` (plafon, kazna za prevelik skok), `Block`, `JumpPad`, `JumpOrb`, `Coin`, `DuckBarrier`, `Saw`, `MovingPlatform` (amp=0 → statični „ledge"), `Laser` (otvor po visini), `CrumblePlatform`, `Pit`, `Shield`, `ExtraLife`, `Teleport`/`TeleportExit` (par portala — preskok napred), `FlyingCoin`, `Particle`, `Shuriken` (boss, čučanj), `Boss`, `BackgroundLayer`. `GRID`. |
 | [js/levels.js](js/levels.js) | `LEVELS` (5 ručnih nivoa, `LevelBuilder`), `LevelRuntime` (spawner), endless generator. |
 | [js/ui.js](js/ui.js) | Sav DOM: ekrani, HUD, level-select/shop render, callbacks. |
 | [js/game.js](js/game.js) | **Entry modul:** state machine, game loop, kolizije, wiring. Sadrži `init()`. |
@@ -36,7 +36,7 @@ Sve se računa na **logičkoj skali** `1200×600`, `GROUND_Y=450`. `view` (u con
 
 ### State machine i modovi (game.js)
 `state`: `MENU → PLAYING → (DEAD | COMPLETE | GAMEOVER)`. `mode`: `CAMPAIGN` | `PRACTICE` | `ENDLESS`.
-- **CAMPAIGN:** šiljak/blok = **instant smrt** → restart nivoa od početka; brojač pokušaja.
+- **CAMPAIGN:** šiljak/blok = **instant smrt** → restart nivoa od početka; brojač pokušaja. Skupljena **srca** (`ExtraLife`) = checkpoint rezerva: smrt troši srce i radi respawn na poslednjoj sigurnoj tački (`lastSafeX`) umesto restarta (`HEART_CAP=3`, HUD preko `lives-board`).
 - **PRACTICE:** isto, ali respawn na poslednjem checkpoint-u (auto svakih ~1800 jedinica + ručno taster `Z`).
 - **ENDLESS:** zadržava **3 života + neranjivost** (opušteni mod), proceduralni spawn, boss na score 800.
 
@@ -44,7 +44,7 @@ Sve se računa na **logičkoj skali** `1200×600`, `GROUND_Y=450`. `view` (u con
 Nivo = elementi na apsolutnim `x` pozicijama + tema/BPM/dužina. Runtime vodi `worldX` (raste za `speed`/frejm), spawnuje elemente kad uđu na ekran (`x = el.x - worldX`), uklanja one van ekrana. `progress = worldX/length`, `finished` na kraju. `getTheme()` daje glatke color-shift prelaze. `seek()` za practice respawn; `spawnPaused` za boss.
 
 ### Mehanike / kolizije
-`Spike` = instant smrt. `Block` = solidan (sletanje odozgo preko `resolveFloor()`, bočni sudar = smrt; **mora imati `solidTop=true`**). `JumpPad` = auto-odskok. `JumpOrb` = skok u vazduhu uz njega (aktivira se u `doJump()`). `Coin` = sakupljanje. `MovingPlatform`/`CrumblePlatform`/`Block` dele `solidTop` granu (sletanje vs bok). `MovingPlatform` sa `amp=0` = statični ledge (`LevelBuilder.ledge(w,y)`). `Laser` = vertikalni snop sa otvorom; helperi `laserJump`/`laserDuck`/`laserGap` biraju visinu otvora. `DuckBarrier`/`Shuriken` = promaši se čučnjem. `Pit` = pad u provaliju → smrt; **`player.fallingPit` „zaključava" pad** u `resolveFloor()` da rupa koja odscrolluje ne „spasi" igrača. Boss naizmenično baca `Spike` (skok) / `Shuriken` (čučanj) / `Laser` (poravnaj skok). Hitbox-evi su „forgiving" (`getHitbox()`).
+`Spike` = instant smrt. `Block` = solidan (sletanje odozgo preko `resolveFloor()`, bočni sudar = smrt; **mora imati `solidTop=true`**). `JumpPad` = auto-odskok. `JumpOrb` = skok u vazduhu uz njega (aktivira se u `doJump()`). `Coin` = sakupljanje. `MovingPlatform`/`CrumblePlatform`/`Block` dele `solidTop` granu (sletanje vs bok). `MovingPlatform` sa `amp=0` = statični ledge (`LevelBuilder.ledge(w,y)`). `Laser` = vertikalni snop sa otvorom; helperi `laserJump`/`laserDuck`/`laserGap` biraju visinu otvora. `DuckBarrier`/`Shuriken` = promaši se čučnjem. `Pit` = pad u provaliju → smrt; **`player.fallingPit` „zaključava" pad** u `resolveFloor()` da rupa koja odscrolluje ne „spasi" igrača. `CeilingSpike` = hazard usidren na plafonu (kazna kad se skoči previše). `Teleport` (ulaz) na dodir radi `runtime.seek(exitWorldX - player.x)` → premota svet napred do `TeleportExit` (preskoči gauntlet); `doTeleport()` u game.js. Boss naizmenično baca `Spike` (skok) / `Shuriken` (čučanj) / `Laser` (poravnaj skok). Hitbox-evi su „forgiving" (`getHitbox()`).
 
 ### Vizuali
 Per-nivo neon teme (gradijent pozadine, grid pod, glow). **Beat clock** pulsira pozadinu/pod/glow uz BPM. Trag iza igrača, screen shake na smrt/pad. **FX toggle** (`✨`/`🌙` dugme, `ninjaFX`) gasi sve efekte (reduce-motion).

@@ -49,6 +49,9 @@ let lives = 3;
 let attempts = 1;
 let practiceSelected = false;
 let checkpoints = [0];
+let heartReserve = 0;     // kampanja: skupljena srca = respawn na poslednjoj sigurnoj tački
+let lastSafeX = 0;        // poslednja sigurna tačka (worldX dok je igrač na čvrstom tlu)
+const HEART_CAP = 3;      // maks. nakupljenih srca u kampanji
 
 // ---------- Pomoćne ----------
 function overlap(a, b) {
@@ -71,11 +74,15 @@ function startLevel(level, practice) {
     particles = []; flyingCoins = []; boss = null;
     campaignBossDone = false; bossLives = 0;
     runCoins = 0; attempts = 1; checkpoints = [0];
+    heartReserve = 0; lastSafeX = 0;
     audio.setMusic(level.music, level.bpm);
     ui.hideAllScreens();
     ui.showHUD(true);
     ui.showProgress(true); ui.setProgress(0);
-    ui.showScore(false); ui.showLives(false);
+    ui.showScore(false);
+    // Kampanja: srca (checkpoint rezerva) u HUD-u; practice koristi prave checkpoint-e.
+    if (practice) ui.showLives(false);
+    else { ui.showLives(true); ui.setLives(0); }
     ui.showAttempts(true); ui.setAttempts(1);
     ui.setCoins(coins);
     ui.setPracticeHint(practice);
@@ -165,6 +172,17 @@ function handleShopAction(index) {
 // ---------- Smrt / restart / kraj ----------
 function campaignDeath() {
     if (state !== 'PLAYING') return;
+    // Checkpoint rezerva: ako ima srca (kampanja, van boss borbe), potroši jedno i respawn na sigurnoj tački.
+    if (mode === 'CAMPAIGN' && !boss && heartReserve > 0) {
+        heartReserve--;
+        ui.setLives(heartReserve);
+        const c = playerCenter();
+        spawnParticles(c.x, c.y, '#ff2e88', 30);
+        shake(12);
+        audio.playSfx('death');
+        respawnSafe();
+        return;
+    }
     state = 'DEAD';
     attempts++;
     attemptsMap[currentLevel.id] = (attemptsMap[currentLevel.id] || 0) + 1;
@@ -186,10 +204,13 @@ function restartLevel() {
     player.reset();
     particles = []; flyingCoins = [];
     boss = null; campaignBossDone = false; bossLives = 0;
+    heartReserve = 0; lastSafeX = 0;
     audio.restartMusic();
     ui.setProgress(0);
     ui.showBossHud(false);
-    ui.showLives(false);
+    // Kampanja: srca opet od nule; practice nema HUD srca.
+    if (mode === 'PRACTICE') ui.showLives(false);
+    else { ui.showLives(true); ui.setLives(0); }
     ui.showProgress(true);
     ui.showAttempts(true);
     state = 'PLAYING';
@@ -200,6 +221,16 @@ function respawnCheckpoint() {
     runtime.seek(cp);
     player.reset();
     particles = []; flyingCoins = [];
+    state = 'PLAYING';
+}
+
+// Kampanja: respawn na poslednjoj sigurnoj tački (troši srce; bez restarta od početka).
+function respawnSafe() {
+    runtime.seek(lastSafeX);
+    player.reset();
+    player.invuln = 90;
+    particles = []; flyingCoins = [];
+    spawnParticles(player.x + player.width / 2, GROUND_Y - 20, '#00ff88', 14);
     state = 'PLAYING';
 }
 
@@ -251,8 +282,10 @@ function collectLife(e, index) {
         if (lives < 5) { lives++; ui.setLives(lives); }
     } else if (boss) {
         if (bossLives < 5) { bossLives++; ui.setLives(bossLives); }
+    } else if (mode === 'CAMPAIGN') {
+        // Kampanja: srce = checkpoint rezerva (respawn na sigurnoj tački umesto restarta).
+        if (heartReserve < HEART_CAP) { heartReserve++; ui.setLives(heartReserve); }
     }
-    // kampanja-bez-bosa: nema pool-a → graceful no-op
 }
 
 // Vrati igrača na tlo posle pada (endless/boss nastavljaju uz neranjivost).
@@ -336,8 +369,10 @@ function handleCollisions() {
         const eb = e.getHitbox && e.getHitbox();
         if (!eb || !overlap(hb, eb)) continue; // null hitbox (neaktivan laser / nestala crumble) ili nema preseka
 
-        if (e.type === 'spike' || e.type === 'saw' || e.type === 'duckbar' || e.type === 'shuriken') {
+        if (e.type === 'spike' || e.type === 'ceilspike' || e.type === 'saw' || e.type === 'duckbar' || e.type === 'shuriken') {
             if (onHazardHit(e, i)) return;
+        } else if (e.type === 'teleport') {
+            doTeleport(e); return; // seek() rebuilda listu entiteta → prekini obradu
         } else if (e.type === 'laser') {
             if (!e.inGap(hb)) { if (onHazardHit(null, i)) return; } // pogođen samo ako NISI ceo u otvoru
         } else if (e.solidTop) {
@@ -361,6 +396,23 @@ function handleCollisions() {
         }
         // 'orb' se aktivira na pritisak skoka (vidi doJump)
     }
+}
+
+// Teleport: poravna izlazni portal na poziciju igrača i premota svet napred (preskoči gauntlet).
+function doTeleport(e) {
+    const c = playerCenter();
+    spawnParticles(c.x, c.y, '#00e5ff', 24);
+    audio.playSfx('orb');
+    runtime.seek(e.exitWorldX - player.x);
+    player.y = GROUND_Y - player.height;
+    player.dy = 0;
+    player.isGrounded = true;
+    player.jumpCount = 0;
+    player.ground = null;
+    player.fallingPit = false;
+    player.invuln = 60;
+    lastSafeX = runtime.worldX; // izlaz je nova sigurna tačka
+    spawnParticles(player.x + player.width / 2, c.y, '#b14dff', 24);
 }
 
 // Pod: GROUND_Y ili vrh solidTop platforme (block / mover / crumble) na kojoj igrač stoji.
@@ -460,6 +512,10 @@ function tick() {
         if (mode === 'PRACTICE' && player.isGrounded &&
             runtime.worldX - checkpoints[checkpoints.length - 1] > 1800) {
             checkpoints.push(runtime.worldX);
+        }
+        // Kampanja: pamti poslednju sigurnu tačku (na čvrstom tlu, ne nad provalijom) za heart-respawn.
+        if (mode === 'CAMPAIGN' && !boss && player.isGrounded && player.ground === null && !player.fallingPit) {
+            lastSafeX = runtime.worldX;
         }
         if (runtime.reachedBossArena && !boss && !campaignBossDone) startCampaignBoss();
         if (boss) runBossFight();
