@@ -578,12 +578,12 @@ export class ExtraLife {
 
 // --- TELEPORT (ULAZ): svetleći portal; dodir prebaci igrača napred do izlaza (logika u game.js) ---
 export class Teleport {
-    constructor(x, exitWorldX) {
+    constructor(x, exitWorldX, y) {
         this.type = 'teleport';
         this.width = 54;
         this.height = 120;
         this.x = x;
-        this.y = GROUND_Y - this.height; // stoji na tlu
+        this.y = y != null ? y : GROUND_Y - this.height; // podrazumevano na tlu; obično lebdi na platformi
         this.exitWorldX = exitWorldX;    // apsolutni svet-x povezanog izlaza
         this.spin = Math.random() * Math.PI * 2;
         this._color = '#00e5ff';         // ulaz: cyan

@@ -48,11 +48,13 @@ class LevelBuilder {
     life(y) { this.els.push({ type: 'life', x: this.x, y }); this.x += 36; return this; }
     // Plafonski šiljci (kazna za prevelik skok) — usidreni na vrhu.
     ceil(n = 1) { for (let i = 0; i < n; i++) { this.els.push({ type: 'ceilspike', x: this.x }); this.x += 45; } return this; }
-    // Teleport: ulaz na trenutnoj poziciji, izlaz `dist` napred (gauntlet između se preskače portalom).
-    teleport(dist = 600) {
-        this.els.push({ type: 'teleport', x: this.x, dist });
+    // Teleport: ulaz na LEBDEĆOJ platformi (do koje treba skočiti — dvoskok), izlaz `dist` napred na tlu.
+    // Ko ne skoči do portala, ostaje na tlu i prolazi kroz gauntlet prepreka (alternativni put).
+    teleport(dist = 540, ledgeY = GROUND_Y - 210) {
+        this.els.push({ type: 'mover', x: this.x, w: 2, baseY: ledgeY, amp: 0 });   // platforma-nosač
+        this.els.push({ type: 'teleport', x: this.x, dist, y: ledgeY - 120 });       // portal stoji na platformi
         this.els.push({ type: 'teleportExit', x: this.x + dist });
-        this.x += 50;
+        this.x += 100;
         return this;
     }
     build(meta) {
@@ -89,7 +91,7 @@ const L1 = new LevelBuilder()
     .gap(320).coinArc(3)
     .gap(340).ledge(2, GROUND_Y - 150).gap(55).shield(GROUND_Y - 210)
     .gap(320).block(1, 1).gap(80).spike(2)
-    .gap(340).teleport(540)                               // portal preskače gauntlet ispod
+    .gap(340).teleport(540, GROUND_Y - 200)              // portal na platformi (skoči gore) — preskače gauntlet ispod
         .gap(70).pit(2).gap(110).saw().gap(120).spike(2)
     .gap(360).coinArc(4)
     .gap(340).duckbar()
@@ -132,7 +134,7 @@ const L2 = new LevelBuilder()
     .gap(320).pad().ceil(2).gap(60).coin(GROUND_Y - 300)
     .gap(320).ledge(2, GROUND_Y - 150).gap(55).shield(GROUND_Y - 210)
     .gap(320).laserDuck({ onFrames: 65, offFrames: 60 }).gap(240).duckbar()
-    .gap(340).teleport(560)
+    .gap(340).teleport(560, GROUND_Y - 210)
         .gap(70).pit(3).gap(120).saw(GROUND_Y - 150).gap(120).spike(3)
     .gap(340).mover(2, GROUND_Y - 130, 70).gap(160).coinArc(3)
     .gap(320).crumble(2, 1).gap(150).life(GROUND_Y - 120)
@@ -176,7 +178,7 @@ const L3 = new LevelBuilder()
     .gap(340).spike(3)
     // --- Produžetak: dva teleporta, vertikalne stepenice, plafonski šiljci ---
     .gap(320).pad().ceil(3).gap(70).coinArc(3)
-    .gap(300).teleport(520)
+    .gap(300).teleport(520, GROUND_Y - 200)
         .gap(70).pit(3).gap(110).saw().gap(110).spike(3)
     .gap(320).ledge(2, GROUND_Y - 150).gap(55).ledge(2, GROUND_Y - 240).gap(55).shield(GROUND_Y - 300)
     .gap(300).laserJump({ onFrames: 60, offFrames: 70 })
@@ -184,7 +186,7 @@ const L3 = new LevelBuilder()
     .gap(320).mover(2, GROUND_Y - 140, 80).gap(160).life(GROUND_Y - 230)
     .gap(300).spike(3)
     .gap(300).orb(GROUND_Y - 220).ceil(3)
-    .gap(320).teleport(560)
+    .gap(320).teleport(560, GROUND_Y - 240)
         .gap(70).pitMover(5).gap(120).spike(3)
     .gap(320).crumble(2, 1).gap(140).coinArc(4)
     .gap(300).block(1, 2).gap(60).spike(3)
@@ -223,14 +225,14 @@ const L4 = new LevelBuilder()
     .gap(320).spike(3)
     // --- Produžetak: laser+plafon gauntlet, dva teleporta, nagrade na visini ---
     .gap(300).pad().ceil(3).gap(60).orb(GROUND_Y - 270).ceil(2)
-    .gap(300).teleport(540)
+    .gap(300).teleport(540, GROUND_Y - 220)
         .gap(70).pit(4).gap(110).saw(GROUND_Y - 150).gap(110).spike(4)
     .gap(300).ledge(2, GROUND_Y - 160).gap(50).ledge(2, GROUND_Y - 250).gap(55).shield(GROUND_Y - 310)
     .gap(300).laserDuck({ onFrames: 70, offFrames: 50 }).gap(250).laserJump({ onFrames: 60, offFrames: 65 })
     .gap(300).mover(2, GROUND_Y - 140, 85).gap(150).life(GROUND_Y - 250)
     .gap(280).spike(4)
     .gap(300).crumble(2, 1).gap(120).crumble(2, 1).gap(140).coinArc(4)
-    .gap(300).teleport(580)
+    .gap(300).teleport(580, GROUND_Y - 250)
         .gap(70).pitMover(6).gap(120).saw().gap(110).spike(4)
     .gap(300).block(2, 2).gap(60).spike(3)
     .gap(300).laserGap({ onFrames: 70, offFrames: 50 })
@@ -273,14 +275,14 @@ const L5 = new LevelBuilder()
     .gap(320).spike(4)
     // --- Produžetak: finalni gauntlet, dva teleporta, plafonski šiljci svuda ---
     .gap(280).pad().ceil(4).gap(60).orb(GROUND_Y - 280).ceil(3)
-    .gap(280).teleport(560)
+    .gap(280).teleport(560, GROUND_Y - 230)
         .gap(60).pit(5).gap(100).saw(GROUND_Y - 150).gap(100).spike(4)
     .gap(280).ledge(2, GROUND_Y - 160).gap(50).ledge(2, GROUND_Y - 250).gap(50).shield(GROUND_Y - 320)
     .gap(280).laserDuck({ onFrames: 80, offFrames: 45 }).gap(230).laserJump({ onFrames: 70, offFrames: 50 }).gap(230).laserGap({ onFrames: 75, offFrames: 45 })
     .gap(280).mover(2, GROUND_Y - 140, 90).gap(140).mover(2, GROUND_Y - 220, 75).gap(150).life(GROUND_Y - 290)
     .gap(260).spike(4)
     .gap(280).crumble(2, 1).gap(110).crumble(2, 1).gap(130).coinArc(4)
-    .gap(280).teleport(600)
+    .gap(280).teleport(600, GROUND_Y - 260)
         .gap(60).pitMover(6).gap(110).saw().gap(100).duckbar().gap(120).spike(4)
     .gap(280).block(2, 2).gap(55).spike(4)
     .gap(280).orb(GROUND_Y - 250).ceil(4)
@@ -311,7 +313,7 @@ function makeEntity(el, worldX) {
         case 'pit': return new Pit(sx, el.w || 3);
         case 'shield': return new Shield(sx, el.y);
         case 'life': return new ExtraLife(sx, el.y);
-        case 'teleport': return new Teleport(sx, el.x + el.dist);
+        case 'teleport': return new Teleport(sx, el.x + el.dist, el.y);
         case 'teleportExit': return new TeleportExit(sx);
         default: return null;
     }
